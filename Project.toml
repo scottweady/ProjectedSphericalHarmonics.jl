@@ -1,0 +1,20 @@
+name = "ProjectedSphericalHarmonics"
+uuid = "a0048648-d3c1-424e-9ed4-9f0e22296df7"
+version = "0.1.0"
+authors = ["Scott Weady <scott.weady@gmail.com>"]
+
+[deps]
+AssociatedLegendrePolynomials = "2119f1ac-fb78-50f5-8cc0-dda848ebdb19"
+FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
+FastGaussQuadrature = "442a2c76-b920-505d-bb47-c5924d526838"
+IterativeSolvers = "42fd0dbc-a981-5370-80f2-aaf504508153"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+LinearOperators = "5c8ed15e-5a4c-59e4-a42b-c7e8811fb125"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
+[compat]
+IterativeSolvers = "0.9.4"
+LinearAlgebra = "1.12.0"
+LinearOperators = "2.11.0"
+SparseArrays = "1.12.0"
