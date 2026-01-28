@@ -1,48 +1,7 @@
 
 using FFTW
 
-export ∂n, ∂r, ∂θ, ∂x, ∂y, grad, div, lap
-export 𝒮, 𝒮⁻¹, 𝒩, 𝒩⁻¹, 𝒱, ℬ, δ𝒮, δ𝒩, δ𝒱, δℬ
-export psh_transform
-
-"""
-    psh_transform(u, D; kind=:even)
-
-PSH transform of function `u` on disk `D`.
-
-# Arguments
-- `u` : function on the disk
-- `D` : discretization of the disk
-- `kind` : either `:even` or `:odd` expansion
-
-# Returns
-- PSH coefficients of `u`
-"""
-function psh_transform(u, D; kind=:even)
-
-  # Degree of radial expansion
-  M = D.M
-
-  # Quadrature weights
-  ζ = @view D.ζ[1 : (M + 1)]
-  dζ = @view D.dζ[1 : (M + 1)] 
-
-  # Basis functions
-  Y = @view getfield(D.Y, kind)[1 : (M + 1), :]
-
-  # Compute transform
-  u = reshape(u, M + 1, 2M + 1)
-  uₖ = fft(u, 2)
-  uₖ = Y' * (uₖ .* (dζ ./ sqrt.(1 .- abs2.(ζ))))
-
-  # Get relevant coefficients
-  modes = D.modes[getfield(D, kind)]
-  azimuthal_modes = [mod(m, 2M + 1) + 1 for (_, m) in modes]
-  uₖ = [uₖ[i, j] for (i, j) in enumerate(azimuthal_modes)]
-
-  return uₖ
-  
-end
+import Base: div
 
 """
     ∂n(u, D)
@@ -54,14 +13,14 @@ Normal derivative operator
 - `D` : discretization of the disk
 
 # Returns
-- normal derivative of function evaluated at the boundary
+- normal derivative of function on the disk
 
 Warning: Ill-conditioned, use with caution.
 """
 function ∂n(u, D; tol=1e-8)
-  uₖ = psh_transform(u, D, kind=:even)
-  uₖ[abs.(uₖ) .< tol] .= 0.0
-  return D.∂Y∂n.even * uₖ
+  û = psh(u, D, parity=:even)
+  û[abs.(û) .< tol] .= 0.0
+  return D.∂Y∂n.even * û
 end
 
 """
@@ -78,9 +37,10 @@ Radial derivative
 
 Warning: Ill-conditioned, use with caution.
 """
-function ∂r(u, D)
-    uₖ = psh_transform(u, D, kind=:even)
-    return D.∂Y∂r.even * uₖ
+function ∂r(u, D; tol=1e-8)
+    û = psh(u, D, parity=:even)
+    û[abs.(û) .< tol] .= 0.0
+    return D.∂Y∂r.even * û
 end
 
 """
@@ -96,8 +56,8 @@ Angular derivative
 - angular derivative of function on the disk
 """
 function ∂θ(u, D)
-    uₖ = psh_transform(u, D, kind=:even)
-    return D.Y.even * (D.∂̂.θ * uₖ)
+    û = psh(u, D, parity=:even)
+    return ipsh(D.∂θ̂ * û, D, parity=:even)
 end
 
 """
@@ -114,15 +74,15 @@ Gradient operator
 
 Warning: Ill-conditioned, use with caution.
 """
-function grad(u, D)
+function grad(u, D; parity=:even)
 
     r, θ = abs.(D.ζ), angle.(D.ζ)
     ∂u∂r, ∂u∂θ = ∂r(u, D), ∂θ(u, D)
 
-    ux = cos.(θ) .* ∂u∂r .- (sin.(θ) ./ r) .* ∂u∂θ
-    uy = sin.(θ) .* ∂u∂r .+ (cos.(θ) ./ r) .* ∂u∂θ
+    ∂u∂x = cos.(θ) .* ∂u∂r .- (sin.(θ) ./ r) .* ∂u∂θ
+    ∂u∂y = sin.(θ) .* ∂u∂r .+ (cos.(θ) ./ r) .* ∂u∂θ
 
-    return (ux, uy)
+    return (∂u∂x, ∂u∂y)
 
 end
 
@@ -176,7 +136,7 @@ Divergence operator
 
 Warning: Ill-conditioned, use with caution.
 """
-function div(u, D)
+function div(u::Tuple, D)
     return ∂x(u[1], D) .+ ∂y(u[2], D)
 end
 
@@ -212,14 +172,18 @@ Single layer of 3D Laplacian
 """
 function 𝒮(u, D)
 
+  if isa(u, Number)
+    u = fill(u, length(D.ζ))
+  end
+
   # Even expansion of u * w
-  uwₖ = psh_transform(u .* D.w, D, kind=:even)
+  ûw = psh(u .* D.w, D, parity=:even)
 
   # Compute weighted coefficients
-  fₖ = D.Ŝ * uwₖ
+  f̂ = D.Ŝ * ûw
 
   # Evaluate on grid
-  return D.Y.even * fₖ
+  return ipsh(f̂, D, parity=:even)
 
 end
 
@@ -237,14 +201,18 @@ Inverse of 𝒮
 """
 function 𝒮⁻¹(f, D)
 
+  if isa(f, Number)
+    f = fill(f, length(D.ζ))
+  end
+
   # Even expansion of f
-  fₖ = psh_transform(f, D, kind=:even)
+  f̂ = psh(f, D, parity=:even)
 
   # Compute weighted coefficients
-  uwₖ = D.Ŝ \ fₖ
+  ûw = D.Ŝ \ f̂
 
   # Evaluate on grid
-  return (D.Y.even * uwₖ) ./ D.w
+  return ipsh(ûw, D, parity=:even) ./ D.w
 
 end
 
@@ -262,17 +230,20 @@ Hypersingular operator
 """
 function 𝒩(u, D)
 
+  if isa(u, Number)
+    u = fill(u, length(D.ζ))
+  end
+
   # Odd expansion of u
-  uₖ = psh_transform(u, D, kind=:odd)
+  û = psh(u, D, parity=:odd)
 
   # Compute weighted coefficients
-  fwₖ = D.N̂ * uₖ
+  f̂w = D.N̂ * û
 
   # Evaluate on grid
-  return (D.Y.odd * fwₖ) ./ D.w
+  return ipsh(f̂w, D, parity=:odd) ./ D.w
 
 end
-
 
 """
     𝒩⁻¹(f, D)
@@ -288,14 +259,18 @@ Inverse of 𝒩
 """
 function 𝒩⁻¹(f, D)
 
+  if isa(f, Number)
+    f = fill(f, length(D.ζ))
+  end
+
   # Weighted odd expansion of f 
-  fwₖ = psh_transform(f .* D.w, D, kind=:odd)
+  f̂w = psh(f .* D.w, D, parity=:odd)
 
   # Compute coefficients
-  uₖ = D.N̂ \ fwₖ
+  û = D.N̂ \ f̂w
 
   # Evaluate on grid
-  return D.Y.odd * uₖ
+  return ipsh(û, D, parity=:odd)
 
 end
 
@@ -314,10 +289,14 @@ Single layer of 2D Laplacian
 """
 function 𝒱(u, D)
 
-    ζ, dζ = D.ζ, D.dζ
-    δζ = ζ .- transpose(ζ)
-    V = (1 / 2π) * log.(abs.(δζ) .+ (δζ .== 0)) .* dζ';
-    return V * u .+ ((abs2.(ζ) .- 1) / 4 .- sum(V, dims=2)) .* u
+  if isa(u, Number)
+    u = fill(u, length(D.ζ))
+  end
+
+  ζ, dζ = D.ζ, D.dζ
+  δζ = ζ .- transpose(ζ)
+  V = (1 / 2π) * log.(abs.(δζ) .+ (δζ .== 0)) .* dζ';
+  return V * u .+ ((abs2.(ζ) .- 1) / 4 .- sum(V, dims=2)) .* u
 
 end
 
@@ -335,10 +314,39 @@ Single layer of 2D Bilaplacian
 """
 function ℬ(u, D; κ=0)
 
+  if isa(u, Number)
+    u = fill(u, length(D.ζ))
+  end
+
 	ζ, dζ = D.ζ, D.dζ
-    δζ = ζ .- transpose(ζ)
+  δζ = ζ .- transpose(ζ)
 	B = (1 / 8π) * abs2.(δζ) .* (log.(abs.(δζ) .+ (δζ .== 0)) .- 1 .+ κ) .* dζ';
-    return B * u
+  return B * u
+
+end
+
+"""
+    𝒯(u, D)
+
+    Single layer of 3D Bilaplacian
+
+# Arguments
+- `u` : density function on the disk
+- `D` : discretization of the disk
+
+# Returns
+- single layer potential evaluated on the disk
+"""
+function 𝒯(u, D)
+
+  if isa(u, Number)
+    u = fill(u, length(D.ζ))
+  end
+
+	ζ, dζ = D.ζ, D.dζ
+  δζ = ζ .- transpose(ζ)
+	T = (1 / 8π) * abs.(δζ) .* dζ';
+  return T * u
 
 end
 
@@ -418,7 +426,7 @@ Shape derivative of 𝒱
 function δ𝒱(u, m, D)
 
 	ζ = D.ζ
-    dζ = D.dζ
+  dζ = D.dζ
 	fac = ζ.^0
 	arg = ζ.^m .* u
 	val = 2(m + 1) * 𝒱(arg, D)
@@ -449,7 +457,7 @@ Shape derivative of ℬ
 function δℬ(u, m, D)
 
 	ζ = D.ζ
-    dζ = D.dζ
+  dζ = D.dζ
 	fac = ζ.^0
 	arg = ζ.^m .* u
 	val = 2(m + 1) * ℬ(arg, D)
@@ -463,4 +471,26 @@ function δℬ(u, m, D)
 
 	return val
 
+end
+
+"""
+
+    trace(u, D)
+
+Evaluate function on boundary of disk
+
+# Arguments
+- `u` : function on the disk
+- `D` : discretization of the disk
+
+# Returns
+- function evaluated on the boundary of the disk
+"""
+function trace(u, D)
+    û = psh(u, D)
+    return D.Yθ.even * û
+end
+
+function trace(u::Tuple, D)
+    return (trace(u[1], D), trace(u[2], D))
 end

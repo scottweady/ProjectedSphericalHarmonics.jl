@@ -1,3 +1,5 @@
 
 local
-tests/scratch.jl
+examples/*/
+
+Manifest.toml

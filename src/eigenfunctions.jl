@@ -1,125 +1,85 @@
 
 using AssociatedLegendrePolynomials: Plm, λlm as Plm_norm
-using SpecialFunctions
-
-export ylm, Plm, λlm, Nlm, ∂ylm∂n
+using SpecialFunctions: loggamma
 
 """
     ylm(l, m, ζ)
 
-Projected spherical harmonics of degree `l` and order `m` evaluated at points `ζ`.
+Projected spherical harmonic of degree `l` and order `m` evaluated at points `ζ`.
 
 # Arguments
-- `l` : degree
-- `m` : order
+- `l` : radial degree
+- `m` : azimuthal order
 - `ζ` : points on the disk
 
 # Returns
-- projected spherical harmonic evaluated on the disk
+- length(ζ) vector of function values
 """
 function ylm(l::Int, m::Int, ζ)
-
-  # Get polar coordinates
+  if abs(m) > l
+    error("Invalid mode: |m| must be <= l.")
+  end
   r, θ = abs.(ζ), angle.(ζ)
-
-  # Return
   return sqrt(2) * ϕlm(l, m) * Plm_norm(l, abs(m), sqrt.(1 .- r.^2)) .* exp.(im * m * θ)
-
 end
 
 """
-    ylm(M, ζ)
+    ylm(Mr, Mθ, r, θ)
 
-Projected spherical harmonics evaluated at points `ζ` for degree `l, m <= M`.
+Projected spherical harmonics up to order `M` evaluated on product grid `r * exp.(im * θ)`.
 
 # Arguments
-- `M` : maximum degree and order
-- `ζ` : points on the disk
+- `M` : order of expansion
+- `r` : radial coordinates
+- `θ` : angular coordinates
 
 # Returns
-- projected spherical harmonics evaluated on the disk
+- length(r) * length(θ) by (M + 1) * (2M + 1) matrix of function values
 """
-function ylm(M::Int, ζ)
+function ylm(Mr::Int, Mθ::Int, r, θ)
+
+  # Get polar coordinates
+  r, θ = reshape(vec(r), :, 1), reshape(vec(θ), 1, :)
 
   # Prepare mode indices
-  Lspan = reshape(0 : M, 1, M + 1, 1)
-  Mspan = reshape(-M : M, 1, 1, 2 * M + 1)
-  
-  # Get polar coordinates
-  r, θ = abs.(ζ), angle.(ζ)
+  Lspan = 0 : Mr
+  Mspan = [0 : Mθ; -Mθ : -1]
+  Lspan = reshape(Lspan, 1, 1, length(Lspan), 1)
+  Mspan = reshape(Mspan, 1, 1, 1, length(Mspan))
 
   # Compute associated Legendre polynomials
-  P = Plm_norm(0 : M, 0 : M, sqrt.(1 .- r.^2))[:, 1, :, :]
-  P = cat(P[:, :, (M + 1) : -1 : 2], P[:, :, 1 : (M + 1)]; dims=3) 
+  P = Plm_norm(0 : Mr, 0 : Mθ, sqrt.(1 .- r.^2))
+  
+  # Compute projected spherical harmonics
+  Y = sqrt(2) * ϕlm.(Lspan, Mspan) .* P[:, :, :, abs.(vec(Mspan)) .+ 1] .* exp.(im * Mspan .* θ)
+  Y = reshape(Y, length(r) * length(θ), length(Lspan) * length(Mspan))
 
-  # Return
-  return sqrt(2) * ϕlm.(Lspan, Mspan) .* P .* exp.(im * Mspan .* θ)
-
-end
-
-"""
-    ∂ylm∂r(M, ζ)
-
-Radial derivative of projected spherical harmonics of degree `l` and order `m` evaluated at points `ζ` for `l, m <= M`.
-
-# Arguments
-- `M` : maximum degree and order
-- `ζ` : points on the disk
-
-# Returns
-- radial derivative of projected spherical harmonics evaluated on the disk
-"""
-function ∂ylm∂r(M::Int, ζ)
-
-    Lspan = reshape(0 : M, 1, M + 1, 1)
-    Mspan = reshape(-M : M, 1, 1, 2 * M + 1)
-
-    # Get polar coordinates
-    r, θ = abs.(ζ), angle.(ζ)
-    x = sqrt.(1 .- r.^2)
-
-    # Compute associated Legendre polynomials
-    P₀ = Plm(0 : M, 0 : M, x)[:, 1, :, :]
-    P₁ = Plm(0 : (M + 1), 0 : M, x)[:, 1, 2 : end, :]
-
-    # Compute derivative using recurrence relation
-    dPdr = Array{Float64}(undef, length(ζ), M + 1, M + 1)
-
-    for l = 0 : M
-        for m = 0 : l
-            nl, nm = l + 1, m + 1
-            dPdr[:, nl, nm] = 1 ./ (x .* r) .* (-(l + 1) * x .* P₀[:, nl, nm] .+ (l - m + 1) * P₁[:, nl, nm])
-        end
-    end
-
-    dPdr = ϕlm.(Lspan, Mspan) .* cat(dPdr[:, :, (M + 1) : -1 : 2], dPdr[:, :, 1 : (M + 1)]; dims=3)    
-    
-    return Nlm.(Lspan, Mspan) .* dPdr .* exp.(im * Mspan .* θ)
+  return Y
 
 end
 
-"""
-    ∂ylm∂n(l, m, ζ)
+# Shortcut for equal order expansions
+function ylm(M::Int, r, θ)
+  return ylm(M, M, r, θ)
+end
 
-Normal derivative of projected spherical harmonics of degree `l` and order `m` evaluated at points `ζ`.
+"""
+    ∂ylm∂n(l, m)
+
+Normal derivative of projected spherical harmonics of degree `l` and order `m` evaluated at `θ=0'.
 
 # Arguments
-- `l` : degree
-- `m` : order
-- `ζ` : points on the boundary of the disk
+- `l` : radial degree
+- `m` : azimuthal order
 
 # Returns
-- normal derivative of projected spherical harmonics evaluated on the boundary
+- scalar function value
 """
-function ∂ylm∂n(l::Int, m::Int, ζ)
+function ∂ylm∂n(l::Int, m::Int)
 
-  # Check if points are on the boundary
-  r = abs.(ζ)
-  if any(abs.(r .- 1) .> 1e-12)
-    error("Points ζ must be on the boundary of the disk (|ζ| = 1).")
+  if abs(m) > l
+      return 0.0
   end
-
-  θ = angle.(ζ)
 
   if mod(m + l, 2) == 0
 
@@ -127,7 +87,7 @@ function ∂ylm∂n(l::Int, m::Int, ζ)
     lmm = l - abs(m)
     tmp = 0.5 * (loggamma(lpm + 1) + loggamma(lmm + 1)) - (loggamma(lpm/2 + 1) + loggamma(lmm/2 + 1)) - l * log(2)
 
-    return (-1)^(Int(lpm/2)) * (l + lpm * lmm) * sqrt((2 * l + 1) / 2π) * exp(tmp) .* exp.(im * m * θ)
+    return (-1)^(Int(lpm/2)) * (l + lpm * lmm) * sqrt((2 * l + 1) / 2π) * exp(tmp)
 
   end
 
@@ -136,47 +96,90 @@ function ∂ylm∂n(l::Int, m::Int, ζ)
 end
 
 """
-    ∂ylm∂n(M, ζ)
+    ∂ylm∂n(Mr, Mθ, θ)
 
-Normal derivative of projected spherical harmonics of degree `l` and order `m` evaluated at points `ζ` for `l, m <= M`.
+Normal derivative of projected spherical harmonics up to order `M` evaluated at `exp.(im * θ)`.
+
+See `∂ylm∂n(l, m)`.
 
 # Arguments
 - `M` : maximum degree and order
-- `ζ` : points on the boundary of the disk
+- `θ` : angular coordinates
 
 # Returns
-- normal derivative of projected spherical harmonics evaluated on the boundary
+- length(θ) by (M + 1) * (2M + 1) matrix of function values
 """
-function ∂ylm∂n(M::Int, ζ)
+function ∂ylm∂n(Mr::Int, Mθ::Int, θ)
 
-  ∂Y∂n = Array{ComplexF64}(undef, length(ζ), M + 1, 2 * M + 1)
+  θ = vec(θ)
 
-  for m = -M : M
-    nm = (M + 1) + m
-    for l = max(abs(m), 0) : M
-      nl = l + 1
-      ∂Y∂n[:, nl, nm] .= ∂ylm∂n(l, m, ζ)
-    end
-  end
+  Lspan = 0 : Mr
+  Mspan = [0 : Mθ; -Mθ : -1]
+  Lspan = reshape(Lspan, 1, length(Lspan), 1)
+  Mspan = reshape(Mspan, 1, 1, length(Mspan))
+
+  ∂Y∂n = ∂ylm∂n.(Lspan, Mspan) .* exp.(im * Mspan .* θ)
+  ∂Y∂n = reshape(∂Y∂n, length(θ), length(Lspan) * length(Mspan))
 
   return ∂Y∂n
 
 end
 
-"""
-    λlm(l, m)
+# Shortcut for equal order expansions
+function ∂ylm∂n(M::Int, θ)
+  return ∂ylm∂n(M, M, θ)
+end
 
-    Generalized eigenvalues of projected spherical harmonics
+"""
+    ∂ylm∂r(M, r, θ)
+
+Radial derivative of projected spherical harmonics up to order `M` evaluated on product grid `r * exp.(im * θ)`.
 
 # Arguments
-- `l` : degree
-- `m` : order
+- `M` : maximum degree and order
+- `r` : radial coordinates
+- `θ` : angular coordinates
 
 # Returns
-- eigenvalue
+- length(r) * length(θ) by (M + 1) * (2M + 1) matrix of function values
+
+Warning: Ill-conditioned, use with caution.
 """
-function λlm(l::Int, m::Int)
-  return exp((loggamma((l + m + 1) / 2) + loggamma((l - m + 1) / 2)) - (loggamma((l + m + 2) / 2) + loggamma((l - m + 2) / 2)))
+function ∂ylm∂r(Mr::Int, Mθ::Int, r, θ)
+
+  # Get polar coordinates
+  r, θ = reshape(vec(r), :, 1), reshape(vec(θ), 1, :)
+
+  # Prepare mode indices
+  Lspan = 0 : Mr
+  Mspan = [0 : Mθ; -Mθ : -1]
+  Lspan = reshape(Lspan, 1, 1, length(Lspan), 1)
+  Mspan = reshape(Mspan, 1, 1, 1, length(Mspan))
+
+  # Define argument
+  x = sqrt.(1 .- r.^2)
+
+  # Compute associated Legendre polynomials
+  P = Plm(0 : Mr + 1, 0 : Mθ, x)
+  Pℓ, Pℓ₊₁ = P[:, :, 1 : end - 1, :], P[:, :, 2 : end, :]
+  
+  # Compute derivative using recurrence relation
+  dPdr = Array{Float64}(undef, length(r), 1, Mr + 1, Mθ + 1)
+  for (nl, l) in enumerate(0 : Mr)
+      for (nm, m) in enumerate(0 : Mθ) #positive modes only
+          if abs(m) > l
+            continue
+          end
+          dPdr[:, :, nl, nm] = 1 ./ (x .* r) .* (-(l + 1) * x .* Pℓ[:, :, nl, nm] .+ (l - m + 1) * Pℓ₊₁[:, :, nl, nm])
+      end
+  end
+
+  # Compute radial derivative of projected spherical harmonics
+  ∂Y∂r = ϕlm.(Lspan, Mspan) .* Nlm.(Lspan, Mspan) .* dPdr[:, :, :, abs.(vec(Mspan)) .+ 1] .* exp.(im * Mspan .* θ)
+  ∂Y∂r = reshape(∂Y∂r, length(r) * length(θ), length(Lspan) * length(Mspan))
+
+  return ∂Y∂r
+
 end
 
 """
@@ -184,10 +187,21 @@ end
 
     Normalization factor for projected spherical harmonics
 
+# Arguments
+- `l` : degree
+- `m` : order
+
+# Returns
+- scalar normalization factor
 """
 function Nlm(l::Int, m::Int)
-  val = 0.5 * log((2l + 1) / (2π)) + 0.5 * (loggamma(l - abs(m) + 1) - loggamma(l + abs(m) + 1))
-  return exp(val)
+
+  if abs(m) > l
+      return 0.0
+  end
+
+  return exp(0.5 * log((2l + 1) / (2π)) + 0.5 * (loggamma(l - abs(m) + 1) - loggamma(l + abs(m) + 1)))
+
 end
 
 """
@@ -195,6 +209,14 @@ end
 
     Ratio of normalization factors for projected spherical harmonics
 
+# Arguments
+- `l` : degree of numerator
+- `m` : order of numerator
+- `p` : degree of denominator
+- `q` : order of denominator
+
+# Returns
+- scalar ratio of normalization factors
 """
 function Nlm(l::Int, m::Int, p::Int, q::Int)
   val = (0.5 * im * m + 0.5 * log((2l + 1) / (2π)) + 0.5 * (loggamma(l - abs(m) + 1) - loggamma(l + abs(m) + 1))) - 
@@ -208,7 +230,51 @@ end
 
     Phase factor for projected spherical harmonics
 
+# Arguments
+- `l` : degree
+- `m` : order
+
+# Returns
+- scalar phase factor
 """
 function ϕlm(l::Int, m::Int)
   return m ≥ 0 ? 1.0 : (-1)^m
 end
+
+"""
+    λlm(l, m)
+
+    Generalized eigenvalues of projected spherical harmonics
+
+# Arguments
+- `l` : degree
+- `m` : order
+
+# Returns
+- scalar eigenvalue
+"""
+function λlm(l::Int, m::Int)
+
+  if abs(m) > l
+      return 0.0
+  end
+
+  return exp((loggamma((l + m + 1) / 2) + loggamma((l - m + 1) / 2)) - (loggamma((l + m + 2) / 2) + loggamma((l - m + 2) / 2)))
+
+end
+
+
+# function Dylm(l, m, ζ)
+
+#   u(z::Vector) = [real.(ylm(l, m, z[1] + im * z[2])), imag.(ylm(l, m, z[1] + im * z[2]))]
+#   ∇ylm = zeros(ComplexF64, length(ζ), 2)
+
+#   for (nz, z) in enumerate(ζ)
+#     Ju = ForwardDiff.jacobian(u, [real(z); imag(z)])
+#     ∇ylm[nz, 1] = Ju[1, 1] + im * Ju[2, 1]
+#     ∇ylm[nz, 2] = Ju[1, 2] + im * Ju[2, 2]
+#   end
+
+#   return (∇ylm[:, 1], ∇ylm[:, 2])
+
+# end

@@ -1,90 +1,118 @@
 
-using SparseArrays
+using SparseArrays: spdiagm, sparse
 
-export psh_disk
+# Define line by line elements of disk struct
+struct disk
+  shp
+  Mr
+  Mθ
+  Lspan
+  Mspan
+  odd
+  even
+  az
+  Yr
+  Yθ
+  ∂Y∂n
+  ∂Y∂r
+  r
+  θ
+  ζ
+  dζ
+  w
+  dw
+  Ŝ
+  N̂
+  ∂θ̂
+end
 
 """
-    psh_disk(M)
+    disk(Mr, Mθ)
 
-Discretization of the unit disk using projected spherical harmonics up to degree `M`.
+Discretization of the unit disk using projected spherical harmonics.
 
 # Arguments
-- `M` : maximum degree and order
+- `Mr` : maximum radial degree
+- `Mθ` : maximum azimuthal order
 
 # Returns
-- discretization of the disk
+- Struct containing discretization information
 """
-function psh_disk(M::Int)
+function disk(Mr::Int, Mθ::Int)
 
-  Nr = M + 1
-  Nθ = 2M + 1
+  # Polar coordinate discretization of the disk
+  r, θ, ζ, dζ, dw = diskpts(Mr + 1, 2Mθ + 1)
+  shp = (Mr + 1, 2Mθ + 1)
 
-  # Compute interior grid
-  ζ, dζ = diskpts(Nr, Nθ)
+  # Evaluate eigenfunctions and derivatives
+  Yr = ylm(Mr, Mθ, r, [0.0])
+  Yθ = ylm(Mr, Mθ, [1.0], θ)
+  ∂Y∂r = ∂ylm∂r(Mr, Mθ, r, θ)
+  ∂Y∂n = ∂ylm∂n(Mr, Mθ, θ)
+  
+  # Azimuthal and radial modes
+  Lspan = 0 : Mr
+  Mspan = [0 : Mθ; -Mθ : -1]'
 
-  # Weight function
-  w = sqrt.(1 .- abs2.(ζ))
+  # Eigenvalues
+  λ = vec(λlm.(Lspan, Mspan))
 
-  # Preallocations
-  λ = Array{ComplexF64}(undef, M + 1, 2M + 1) #eigenvalues
-  odd = falses(M + 1, 2M + 1) #odd boolean
-  even = falses(M + 1, 2M + 1) #even boolean
-  modes = Array{Tuple{Int, Int}}(undef, M + 1, 2M + 1) #mode pair
+  # Even and odd boolean
+  even = (Lspan .+ Mspan) .% 2 .== 0 .&& abs.(Mspan) .<= Lspan
+  odd =  (Lspan .+ Mspan) .% 2 .== 1 .&& abs.(Mspan) .<= Lspan
+  even = vec(even)
+  odd = vec(odd)
 
-  # Loop over mode numbers and fill in arrays
-  for m = -M : M
-      
-    nm = (M + 1) + m
+  # Build map from pair index to azimuthal index
+  rows_even, rows_odd = Int[], Int[]
+  cols_even, cols_odd = Int[], Int[]
+  vals_even, vals_odd = Bool[], Bool[]
+  neven, nodd = 0, 0
 
-    for l = max(abs(m), 0) : M
-
-      nl = l + 1
-
-      λ[nl, nm] = λlm(l, m)
-      even[nl, nm] = mod(l + m, 2) == 0
-      odd[nl, nm] = mod(l + m, 2) == 1
-      modes[nl, nm] = (l, m)
+  for (nm, m) in enumerate(Mspan)
+    for (_, l) in enumerate(Lspan)
+      if (m + l) % 2 == 0 && abs(m) <= l
+        neven += 1
+        push!(rows_even, neven)
+        push!(cols_even, nm)
+        push!(vals_even, true)
+      elseif (m + l) % 2 == 1 && abs(m) <= l
+        nodd += 1
+        push!(rows_odd, nodd)
+        push!(cols_odd, nm)
+        push!(vals_odd, true)
+      end
 
     end
   end
 
-  # Polar derivative operator in coefficient space
-  iM = im * [modes[i][2] for i in 1 : ((M+1)*(2M+1))]
-  iM = iM[vec(even)]
-  iM = spdiagm(0 => iM)
-  
-  ∂̂ = (θ = iM, r = [])
+  # Store as sparse
+  az_even = sparse(rows_even, cols_even, vals_even, neven, length(Mspan))
+  az_odd = sparse(rows_odd, cols_odd, vals_odd, nodd, length(Mspan))
+  az = (even = az_even, odd = az_odd)
 
-  # Evaluate eigenfunctions and derivatives
-  Y = ylm(M, ζ)
-  ∂Y∂r = ∂ylm∂r(M, ζ)
+  # Derivative operators in coefficient space
+  iM = vec(0 * Lspan .+ im * Mspan)
+  ∂θ̂ = spdiagm(0 => iM[even])
 
-  Y = (even = Y[:, even], odd = Y[:, odd])
-  ∂Y∂r = (even = ∂Y∂r[:, even], odd = ∂Y∂r[:, odd])
+  ### TO DO: Convert to cartesian derivatives ###
 
-  # Create map from mode pair to index
-  modeIndex = Dict{Tuple{Int, Int}, Int}()
-  for (idx, mode) in enumerate(modes[even])
-      modeIndex[mode] = idx
-  end
-
-  for (idx, mode) in enumerate(modes[odd])
-    modeIndex[mode] = idx
-  end
-
-  # Spectrum of singular operators
+  # Integral operators in coefficient space
   Ŝ = spdiagm(0 => λ[even]/4)
   N̂ = spdiagm(0 => -1 ./ λ[odd])
 
-  # Construct boundary
-  θ, _ = trigpts(Nθ, [0, 2π])
-  X = exp.(im * θ)
-
-  # Normal derivatives of eigenfunctions on boundary (only even ones are valid)
-  ∂Y∂n = ∂ylm∂n(M, X)
+  # Separate by parity
+  Yr = (even = Yr[:, even], odd = Yr[:, odd])
+  Yθ = (even = Yθ[:, even], odd = Yθ[:, odd])
   ∂Y∂n = (even = ∂Y∂n[:, even], odd = ∂Y∂n[:, odd])
+  ∂Y∂r = (even = ∂Y∂r[:, even], odd = ∂Y∂r[:, odd])
 
-  # Store
-  return (Y = Y, ∂Y∂n = ∂Y∂n, ∂Y∂r = ∂Y∂r, ζ = ζ, dζ = dζ, w = w, Ŝ = Ŝ, N̂ = N̂, odd = odd, even = even, modes = modes, modeIndex = modeIndex, M = M, ∂̂ = ∂̂)
+  # Weight function
+  w = sqrt.(1 .- abs2.(ζ))
+  
+  return disk(shp, Mr, Mθ, Lspan, Mspan, odd, even, az,
+              Yr, Yθ, ∂Y∂n, ∂Y∂r, r, θ, ζ, dζ, w, dw, Ŝ, N̂, ∂θ̂)
 
 end
+
+disk(M::Int) = disk(M, M)
