@@ -4,6 +4,27 @@ using FFTW
 import Base: div
 
 """
+    trace(u, D)
+
+Evaluate function on boundary of disk
+
+# Arguments
+- `u` : function on the disk
+- `D` : discretization of the disk
+
+# Returns
+- function evaluated on the boundary of the disk
+"""
+function trace(u, D)
+    û = psh(u, D)
+    return ipsh(û, D, [1.0], parity=:even)
+end
+
+function trace(u::Tuple, D)
+    return (trace(u[1], D), trace(u[2], D))
+end
+
+"""
     ∂n(u, D)
 
 Normal derivative operator
@@ -15,12 +36,20 @@ Normal derivative operator
 # Returns
 - normal derivative of function on the disk
 
-Warning: Ill-conditioned, use with caution.
 """
-function ∂n(u, D; tol=1e-8)
-  û = psh(u, D, parity=:even)
-  û[abs.(û) .< tol] .= 0.0
-  return D.∂Y∂n.even * û
+function ∂n(u, D)
+
+  # Even expansion of u
+  û = psh(u, D; parity=:even)
+
+  # Apply normal derivative operator in coefficient space
+  ∂û∂n = sum(D.even .* (D.∂n̂ .* û), dims=1)
+
+  # Inverse transform to physical space
+  ∂u∂n = ifft(∂û∂n) * length(∂û∂n)
+
+  return ∂u∂n
+
 end
 
 """
@@ -38,9 +67,10 @@ Radial derivative
 Warning: Ill-conditioned, use with caution.
 """
 function ∂r(u, D; tol=1e-8)
-    û = psh(u, D, parity=:even)
-    û[abs.(û) .< tol] .= 0.0
-    return D.∂Y∂r.even * û
+  shp = size(u)
+  û = psh(u, D, parity=:even)
+  û[abs.(û) .< tol] .= 0.0
+  return reshape(D.∂Y∂r * vec(û), shp)
 end
 
 """
@@ -56,8 +86,9 @@ Angular derivative
 - angular derivative of function on the disk
 """
 function ∂θ(u, D)
-    û = psh(u, D, parity=:even)
-    return ipsh(D.∂θ̂ * û, D, parity=:even)
+  û = psh(u, D, parity=:even)
+  ∂û∂θ = D.∂θ̂ .* û
+  return ipsh(∂û∂θ, D, parity=:even)
 end
 
 """
@@ -76,13 +107,13 @@ Warning: Ill-conditioned, use with caution.
 """
 function grad(u, D; parity=:even)
 
-    r, θ = abs.(D.ζ), angle.(D.ζ)
-    ∂u∂r, ∂u∂θ = ∂r(u, D), ∂θ(u, D)
+  r, θ = abs.(D.ζ), angle.(D.ζ)
+  ∂u∂r, ∂u∂θ = ∂r(u, D), ∂θ(u, D)
 
-    ∂u∂x = cos.(θ) .* ∂u∂r .- (sin.(θ) ./ r) .* ∂u∂θ
-    ∂u∂y = sin.(θ) .* ∂u∂r .+ (cos.(θ) ./ r) .* ∂u∂θ
+  ∂u∂x = cos.(θ) .* ∂u∂r .- (sin.(θ) ./ r) .* ∂u∂θ
+  ∂u∂y = sin.(θ) .* ∂u∂r .+ (cos.(θ) ./ r) .* ∂u∂θ
 
-    return (∂u∂x, ∂u∂y)
+  return (∂u∂x, ∂u∂y)
 
 end
 
@@ -91,14 +122,7 @@ end
 
 x-derivative
 
-# Arguments
-- `u` : function on the disk
-- `D` : discretization of the disk
-
-# Returns
-- x-derivative of function on the disk
-
-Warning: Ill-conditioned, use with caution.
+See `grad(u, D)`.
 """
 function ∂x(u, D)
     return grad(u, D)[1]
@@ -109,14 +133,7 @@ end
 
 y-derivative
 
-# Arguments
-- `u` : function on the disk
-- `D` : discretization of the disk
-
-# Returns
-- y-derivative of function on the disk
-
-Warning: Ill-conditioned, use with caution.
+See `grad(u, D)`.
 """
 function ∂y(u, D)
     return grad(u, D)[2]
@@ -155,11 +172,11 @@ Laplacian operator
 Warning: Ill-conditioned, use with caution.
 """
 function lap(u, D)
-    return div(grad(u, D), D)
+  return div(grad(u, D), D)
 end
 
 """
-    𝒮(u, D)
+    laplace3d_single_layer(u, D)
 
 Single layer of 3D Laplacian
 
@@ -170,25 +187,29 @@ Single layer of 3D Laplacian
 # Returns
 - single layer potential evaluated on the disk  
 """
-function 𝒮(u, D)
+function laplace3d_single_layer(u, D)
 
   if isa(u, Number)
-    u = fill(u, length(D.ζ))
+    u = fill(u, size(D.ζ))
   end
 
   # Even expansion of u * w
   ûw = psh(u .* D.w, D, parity=:even)
 
   # Compute weighted coefficients
-  f̂ = D.Ŝ * ûw
+  f̂ = D.Ŝ .* ûw
 
   # Evaluate on grid
   return ipsh(f̂, D, parity=:even)
 
 end
 
+function 𝒮(u, D)
+  return laplace3d_single_layer(u, D)
+end
+
 """
-    𝒮⁻¹(f, D)
+    laplace3d_single_layer_inverse(f, D)
 
 Inverse of 𝒮
 
@@ -199,25 +220,29 @@ Inverse of 𝒮
 # Returns
 - density function on the disk  
 """
-function 𝒮⁻¹(f, D)
+function laplace3d_single_layer_inverse(f, D)
 
   if isa(f, Number)
-    f = fill(f, length(D.ζ))
+    f = fill(f, size(D.ζ))
   end
 
   # Even expansion of f
   f̂ = psh(f, D, parity=:even)
 
   # Compute weighted coefficients
-  ûw = D.Ŝ \ f̂
+  ûw = f̂ ./ D.Ŝ
 
   # Evaluate on grid
   return ipsh(ûw, D, parity=:even) ./ D.w
 
 end
 
+function 𝒮⁻¹(f, D)
+  return laplace3d_single_layer_inverse(f, D)
+end
+
 """
-    𝒩(u, D)
+    laplace3d_hypersingular(u, D)
 
 Hypersingular operator
 
@@ -228,25 +253,29 @@ Hypersingular operator
 # Returns
 - hypersingular operator evaluated on the disk
 """
-function 𝒩(u, D)
+function laplace3d_hypersingular(u, D)
 
   if isa(u, Number)
-    u = fill(u, length(D.ζ))
+    u = fill(u, size(D.ζ))
   end
 
   # Odd expansion of u
   û = psh(u, D, parity=:odd)
 
   # Compute weighted coefficients
-  f̂w = D.N̂ * û
+  f̂w = D.N̂ .* û
 
   # Evaluate on grid
   return ipsh(f̂w, D, parity=:odd) ./ D.w
 
 end
 
+function 𝒩(u, D)
+  return laplace3d_hypersingular(u, D)
+end
+
 """
-    𝒩⁻¹(f, D)
+    laplace3d_hypersingular_inverse(f, D)
 
 Inverse of 𝒩
 
@@ -257,76 +286,100 @@ Inverse of 𝒩
 # Returns
 - density function on the disk
 """
-function 𝒩⁻¹(f, D)
+function laplace3d_hypersingular_inverse(f, D)
 
   if isa(f, Number)
-    f = fill(f, length(D.ζ))
+    f = fill(f, size(D.ζ))
   end
 
   # Weighted odd expansion of f 
   f̂w = psh(f .* D.w, D, parity=:odd)
 
   # Compute coefficients
-  û = D.N̂ \ f̂w
+  û = f̂w ./ D.N̂
 
   # Evaluate on grid
   return ipsh(û, D, parity=:odd)
 
 end
 
+function 𝒩⁻¹(f, D)
+  return laplace3d_hypersingular_inverse(f, D)
+end
+
 """
-    𝒱(u, D)
+    laplace2d_volume(u, D)
     
-Single layer of 2D Laplacian
+Volume potential of 2D Laplacian
 
 # Arguments
 - `u` : density function on the disk
 - `D` : discretization of the disk
 
 # Returns
-- single layer potential evaluated on the disk
+- volume potential evaluated on the disk
 
 """
-function 𝒱(u, D)
+function laplace2d_volume(u, D)
 
   if isa(u, Number)
-    u = fill(u, length(D.ζ))
+    u = fill(u, size(D.ζ))
   end
+
+  shp = size(u)
 
   ζ, dζ = D.ζ, D.dζ
+  u, ζ, dζ = vec(u), vec(ζ), vec(dζ)
+
   δζ = ζ .- transpose(ζ)
   V = (1 / 2π) * log.(abs.(δζ) .+ (δζ .== 0)) .* dζ';
-  return V * u .+ ((abs2.(ζ) .- 1) / 4 .- sum(V, dims=2)) .* u
+  Vu = V * u .+ ((abs2.(ζ) .- 1) / 4 .- sum(V, dims=2)) .* u
+
+  return reshape(Vu, shp)
 
 end
 
-"""
-    ℬ(u, D)
+function 𝒱(u, D)
+  return laplace2d_volume(u, D)
+end
 
-Single layer of 2D Bilaplacian
+"""
+    bilaplace2d_volume(u, D; κ=0)
+
+Volume potential of 2D Bilaplacian
 
 # Arguments
 - `u` : density function on the disk
 - `D` : discretization of the disk
 
 # Returns
-- single layer potential evaluated on the disk
+- volume potential evaluated on the disk
 """
-function ℬ(u, D; κ=0)
+function bilaplace2d_volume(u, D; κ=0)
 
   if isa(u, Number)
-    u = fill(u, length(D.ζ))
+    u = fill(u, size(D.ζ))
   end
 
+  shp = size(u)
+
 	ζ, dζ = D.ζ, D.dζ
+  u, ζ, dζ = vec(u), vec(ζ), vec(dζ)
+
   δζ = ζ .- transpose(ζ)
 	B = (1 / 8π) * abs2.(δζ) .* (log.(abs.(δζ) .+ (δζ .== 0)) .- 1 .+ κ) .* dζ';
-  return B * u
+  Bu = B * u
+
+  return reshape(Bu, shp)
 
 end
 
+function ℬ(u, D; κ=0)
+  return bilaplace2d_volume(u, D; κ=κ)
+end
+
 """
-    𝒯(u, D)
+    bilaplace3d_single_layer(u, D)
 
     Single layer of 3D Bilaplacian
 
@@ -337,17 +390,27 @@ end
 # Returns
 - single layer potential evaluated on the disk
 """
-function 𝒯(u, D)
+function bilaplace3d_single_layer(u, D)
 
   if isa(u, Number)
-    u = fill(u, length(D.ζ))
+    u = fill(u, size(D.ζ))
   end
 
+  shp = size(u)
+
 	ζ, dζ = D.ζ, D.dζ
+  u, ζ, dζ = vec(u), vec(ζ), vec(dζ)
+
   δζ = ζ .- transpose(ζ)
 	T = (1 / 8π) * abs.(δζ) .* dζ';
-  return T * u
+  Tu = T * u
 
+  return reshape(Tu, shp)
+
+end
+
+function 𝒯(u, D)
+  return bilaplace3d_single_layer(u, D)
 end
 
 """
@@ -365,7 +428,10 @@ Shape derivative of 𝒮
 """
 function δ𝒮(u, m, D)
 
+  shp = size(u)
+
 	ζ = D.ζ
+
 	fac = ζ.^0
 	arg = ζ.^m .* u
 	val = 2(m + 1) * 𝒮(arg, D)
@@ -376,7 +442,7 @@ function δ𝒮(u, m, D)
 		arg ./= ζ
 	end
 
-	return val
+  return reshape(val, shp)
 
 end
 
@@ -396,6 +462,7 @@ Shape derivative of 𝒩
 function δ𝒩(u, m, D)
 
 	ζ = D.ζ
+
 	fac = ζ.^0
 	arg = ζ.^m .* u
 	val = 2(m + 1) * 𝒩(arg, D)
@@ -425,17 +492,25 @@ Shape derivative of 𝒱
 """ 
 function δ𝒱(u, m, D)
 
-	ζ = D.ζ
-  dζ = D.dζ
+  if isa(u, Number)
+    u = fill(u, size(D.ζ))
+  end
+
+  shp = size(u)
+
+	ζ, dζ = D.ζ, D.dζ
+
 	fac = ζ.^0
 	arg = ζ.^m .* u
 	val = 2(m + 1) * 𝒱(arg, D)
 
 	for _ = 0 : m
-		val += (1 / 2π) * fac .* sum(ones(size(ζ)) .* transpose(arg .* dζ), dims=2)
+		val += (1 / 2π) * fac .* sum(arg .* dζ)
 		fac .*= ζ
 		arg ./= ζ
 	end
+
+  val = reshape(val, shp)
 
 	return val
 
@@ -456,8 +531,16 @@ Shape derivative of ℬ
 """
 function δℬ(u, m, D)
 
+  if isa(u, Number)
+    u = fill(u, size(D.ζ))
+  end
+
+  shp = size(u)
+
 	ζ = D.ζ
   dζ = D.dζ
+  u, ζ, dζ = vec(u), vec(ζ), vec(dζ)
+
 	fac = ζ.^0
 	arg = ζ.^m .* u
 	val = 2(m + 1) * ℬ(arg, D)
@@ -469,28 +552,6 @@ function δℬ(u, m, D)
 		arg ./= ζ
 	end
 
-	return val
+  return reshape(val, shp)
 
-end
-
-"""
-
-    trace(u, D)
-
-Evaluate function on boundary of disk
-
-# Arguments
-- `u` : function on the disk
-- `D` : discretization of the disk
-
-# Returns
-- function evaluated on the boundary of the disk
-"""
-function trace(u, D)
-    û = psh(u, D)
-    return D.Yθ.even * û
-end
-
-function trace(u::Tuple, D)
-    return (trace(u[1], D), trace(u[2], D))
 end

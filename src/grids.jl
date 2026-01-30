@@ -16,8 +16,8 @@ Return `N` Gauss–Legendre quadrature points and weights on the interval `dom =
 """
 function legpts(N::Int, dom::AbstractVector{T}=[-1.0, 1.0]) where T<:Real
     x, dx = gausslegendre(N)
-    x = @. dom[1] * (1 - x) / 2 + dom[2] * (1 + x) / 2
-    dx = @. dx * (dom[2] - dom[1]) / 2
+    x = dom[1] * (1 .- x) / 2 .+ dom[2] * (1 .+ x) / 2
+    dx = dx * (dom[2] - dom[1]) / 2
     return x, dx
 end
 
@@ -74,7 +74,6 @@ function diskpts(Nr::Int, Nθ::Int, rspan::AbstractVector{T}=[0.0, 1.0], θspan:
   # Complex grid
   ζ = r .* exp.(im * θ) 
   dζ = -s .* ds .* dθ
-  ζ, dζ = vec(ζ), vec(dζ)
   
   # Inner product weight
   dw = -(2π / Nθ) * ds

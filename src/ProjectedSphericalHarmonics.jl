@@ -22,6 +22,6 @@ export ∂n, ∂r, ∂θ, ∂x, ∂y, grad, div, lap
 export trace
 
 include("solvers.jl")
-export Lσ⁻¹, Δ⁻¹, solve
+export Δ⁻¹, solve
 
 end
