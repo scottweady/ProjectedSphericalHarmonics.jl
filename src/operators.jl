@@ -25,6 +25,40 @@ function trace(u::Tuple, D)
 end
 
 """
+    ∂ζ(u, D)
+
+Complex differentiation
+
+# Arguments
+- `u` : function on the disk
+- `D` : discretization of the disk
+
+# Returns
+- complex derivative of function on the disk
+
+Warning: Ill-conditioned, use with caution.
+"""
+function ∂ζ(u, D)
+  û = psh(u, D, parity=:even)
+  ∂ûw∂ζ = circshift(û .* D.∂ζ̂, (0, -1))
+  ∂û∂ζ = D.Ŵ⁻¹(∂ûw∂ζ)
+  return ipsh(∂û∂ζ, D, parity=:even)
+end
+
+"""
+    ∂ζ̄(u, D)
+
+Complex conjugate differentiation
+
+See `∂ζ(u, D)`.
+"""
+function ∂ζ̄(u, D)
+  ū = conj.(u)
+  ∂ū∂ζ = ∂ζ(ū, D)
+  return conj.(∂ū∂ζ)
+end
+
+"""
     ∂n(u, D)
 
 Normal derivative operator
@@ -35,7 +69,6 @@ Normal derivative operator
 
 # Returns
 - normal derivative of function on the disk
-
 """
 function ∂n(u, D)
 
@@ -50,27 +83,6 @@ function ∂n(u, D)
 
   return ∂u∂n
 
-end
-
-"""
-    ∂r(u, D)
-
-Radial derivative
-
-# Arguments
-- `u` : function on the disk
-- `D` : discretization of the disk
-
-# Returns
-- radial derivative of function on the disk
-
-Warning: Ill-conditioned, use with caution.
-"""
-function ∂r(u, D; tol=1e-8)
-  shp = size(u)
-  û = psh(u, D, parity=:even)
-  û[abs.(û) .< tol] .= 0.0
-  return reshape(D.∂Y∂r * vec(û), shp)
 end
 
 """
@@ -105,14 +117,11 @@ Gradient operator
 
 Warning: Ill-conditioned, use with caution.
 """
-function grad(u, D; parity=:even)
+function grad(u, D)
 
-  r, θ = abs.(D.ζ), angle.(D.ζ)
-  ∂u∂r, ∂u∂θ = ∂r(u, D), ∂θ(u, D)
-
-  ∂u∂x = cos.(θ) .* ∂u∂r .- (sin.(θ) ./ r) .* ∂u∂θ
-  ∂u∂y = sin.(θ) .* ∂u∂r .+ (cos.(θ) ./ r) .* ∂u∂θ
-
+  ∂u∂ζ = ∂ζ(u, D)
+  ∂u∂x =  2 * real.(∂u∂ζ)
+  ∂u∂y = -2 * imag.(∂u∂ζ)
   return (∂u∂x, ∂u∂y)
 
 end
@@ -172,7 +181,7 @@ Laplacian operator
 Warning: Ill-conditioned, use with caution.
 """
 function lap(u, D)
-  return div(grad(u, D), D)
+  return 4 * ∂ζ̄(∂ζ(u, D), D)
 end
 
 """
