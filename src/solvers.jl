@@ -1,33 +1,61 @@
 
 using IterativeSolvers, LinearAlgebra, LinearOperators
 
+"""
+    Δ⁻¹(f, g, D)
+
+Inverse Laplacian on the disk with Dirichlet boundary conditions.
+
+# Arguments
+- `f` : right-hand side function on the disk
+- `g` : boundary data on the unit circle
+- `D` : discretization of the disk
+
+# Returns
+- Solution `u` to the Poisson equation Δu = f with u|∂D = g
+"""
 function Δ⁻¹(f, g, D)
 
   # Check if scalar input
   if isa(f, Number)
-      f = fill(f, length(D.ζ))
+    f = fill(f, size(D.ζ))
   end
   if isa(g, Number)
-      g = fill(g, length(D.θ))
+    g = fill(g, size(D.θ))
   end
 
-  shp = size(f)
-  f, g = vec(f), vec(g)
-  
   # Compute the particular solution
   uₚ = 𝒮(𝒩⁻¹(f, D), D)
 
   # Compute the boundary value correction
   ûₕ = fft(g - trace(uₚ, D))
-  ûₕ = D.r.^abs.(D.Mspan) .* transpose(ûₕ)
-  uₕ = vec(ifft(ûₕ, 2))
+  ûₕ = D.r.^abs.(D.Mspan) .* ûₕ
+  uₕ = ifft(ûₕ, 2)
 
   # Return
-  return reshape(uₕ + uₚ, shp)
+  return uₕ + uₚ
 
 end
 
+"""
+    solve(L!, f)
+
+Solve the linear system L σ = f using GMRES.
+
+# Arguments
+- `L!` : function that applies the linear operator L
+- `f` : right-hand side vector
+
+# Returns
+- Solution vector σ
+"""
 function solve(L!, f)
+
+  # Store original shape
+  shp = size(f)
+
+  # Vectorize right-hand side
+  f = vec(f)
 
   # Size 
   N = length(f)
@@ -36,8 +64,9 @@ function solve(L!, f)
   σ = zeros(eltype(f), N)
 
   # Solve using GMRES
+  reltol = 1e-8
   op = LinearOperator(eltype(f), N, N, false, false, L!)
-  σ, history = gmres!(σ, op, f; log=true, reltol=1e-10)
+  σ, history = gmres!(σ, op, f; log=true, reltol=reltol)
 
   # Compute residual norm
   f̃ = similar(f)
@@ -45,8 +74,13 @@ function solve(L!, f)
   err = norm(f̃ - f) / norm(f)
 
   # Display convergence information
-  println("GMRES converged in $(history.iters) iterations (residual norm: $err).")
+  if history.isconverged
+      println("GMRES converged in $(history.iters) iterations (residual norm: $err).")
+  else
+      println("GMRES did not converge in $(history.iters) iterations (residual norm: $err).")
+  end
 
-  return σ
+  # Reshape and return
+  return reshape(σ, shp)
 
 end

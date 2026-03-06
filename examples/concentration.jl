@@ -1,10 +1,9 @@
 
 using ProjectedSphericalHarmonics
-using Plots
 
 # Discretization
-println("Discretizing projected spherical harmonics...")
-Mr, Mθ = 32, 0
+println("Discretizing...")
+Mr, Mθ = 64, 16
 D = disk(Mr, Mθ)
 
 # Range of β values
@@ -15,13 +14,16 @@ D = disk(Mr, Mθ)
 
 for (nβ, β) in enumerate(βspan)
 
-  # Define integral operator
-  function L!(b, σ)
-    b .= σ + 2β * 𝒮(σ, D)
+  # Define integral operator in coefficient space
+  function L̂!(b̂, σ̂)
+    σ̂ = reshape(σ̂, size(D.ζ))
+    σ̂w = psh(ipsh(σ̂, D) .* D.w, D)
+    b̂ .= vec(σ̂ + 2β * D.Ŝ .* σ̂w)
   end
 
-  f = fill(2β, length(D.ζ))
-  σ = solve(L!, f)
+  f̂ = psh(2β, D)
+  σ̂ = solve(L̂!, f̂)
+  σ = ipsh(σ̂, D)
 
   # Check difference from β -> ∞ limit
   err = abs.(σ[1] - σ₀[1])
