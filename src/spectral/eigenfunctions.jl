@@ -1,5 +1,5 @@
 
-using AssociatedLegendrePolynomials: Plm, λlm as Plm_norm
+using AssociatedLegendrePolynomials: λlm as Plm_norm
 using SpecialFunctions: loggamma
 
 """
@@ -18,7 +18,7 @@ Projected spherical harmonic of degree `l` and order `m` evaluated at points `ζ
 function ylm(l::Int, m::Int, ζ)
 
   if abs(m) > l
-    return zeros(size(ζ))
+    return 0 * ζ
   end
 
   r, θ = abs.(ζ), angle.(ζ)
@@ -46,7 +46,7 @@ Complex derivative of projected spherical harmonic of degree `l` and order `m` e
 
 Warning: Ill-conditioned, use with caution.
 """
-function ∂ylm∂ζ(l, m, ζ)
+function ∂ylm∂ζ(l::Int, m::Int, ζ)
   c = m <= 0 ? 1.0 : -(l + m) * (l - m + 1.0)
   return (c / 2.0) * Nlm(l, m, l, m - 1) * ylm(l, m - 1, ζ) ./ sqrt.(1 .- abs2.(ζ))
 end

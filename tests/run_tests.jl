@@ -1,8 +1,18 @@
 
 using ProjectedSphericalHarmonics
 
+function print_error(label, value, tol1=1e-6, tol2=1e-8)
+  if value > tol1
+      printstyled("$label$value\n"; color=:red)
+  elseif value > tol2
+      printstyled("$label$value\n"; color=:yellow)
+  else
+      printstyled("$label$value\n"; color=:green)
+  end
+end
+
 # Discretize disk
-Mr, Mθ = 64, 16
+Mr, Mθ = 256, 128
 D = disk(Mr, Mθ)
 
 # Get grid points and weight function
@@ -16,17 +26,17 @@ println("Testing integral operators...")
 l, m = 5, 3
 u = ylm(l, m, ζ)
 err = 𝒮(u ./ w, D) - (λlm(l, m) * u / 4.0)
-println("  Max error in 𝒮 for (l,m) = ($l,$m): ", maximum(abs.(err)))
+print_error("  Max error in 𝒮 for (l,m) = ($l,$m): ", maximum(abs.(err)))
 err = 𝒮⁻¹(u, D) - (4.0 / λlm(l, m)) * (u ./ w)
-println("  Max error in 𝒮⁻¹ for (l,m) = ($l,$m): ", maximum(abs.(err)))
+print_error("  Max error in 𝒮⁻¹ for (l,m) = ($l,$m): ", maximum(abs.(err)))
 
 # Hypersingular operator
 l, m = 5, 2
 u = ylm(l, m, ζ)
 err = 𝒩(u, D) - (-u ./ w ./ λlm(l, m))
-println("  Max error in 𝒩 for (l,m) = ($l,$m): ", maximum(abs.(err)))
+print_error("  Max error in 𝒩 for (l,m) = ($l,$m): ", maximum(abs.(err)))
 err = 𝒩⁻¹(u ./ w, D) - (-λlm(l, m) * u)
-println("  Max error in 𝒩⁻¹ for (l,m) = ($l,$m): ", maximum(abs.(err)))
+print_error("  Max error in 𝒩⁻¹ for (l,m) = ($l,$m): ", maximum(abs.(err)))
 
 println("Testing differential operators...")
 
@@ -34,7 +44,7 @@ println("Testing differential operators...")
 u = ζ.^5
 ∂u∂n = ∂n(u, D)
 err = maximum(abs.(real.(∂u∂n) .- 5 * cos.(5 * angle.(ζ))))
-println("  Max error in ∂u∂n for u = ζ⁵: $err")
+print_error("  Max error in ∂u∂n for u = ζ⁵: ", err)
 
 # Complex differentiation
 u = ζ.^2 .* exp.(ζ .* conj.(ζ))
@@ -42,8 +52,8 @@ uζ = ζ.^2 .* conj.(ζ) .* exp.(ζ .* conj.(ζ)) + 2 * ζ .* exp.(ζ .* conj.(�
 uζ̄ = ζ.^3 .* exp.(ζ .* conj.(ζ))
 errζ = maximum(abs.(∂ζ(u, D) .- uζ))
 errζ̄ = maximum(abs.(∂ζ̄(u, D) .- uζ̄))
-println("  Max error in ∂u/∂ζ for u = ζ² * exp(|ζ|²): $errζ")
-println("  Max error in ∂u/∂ζ̄ for u = ζ² * exp(|ζ|²): $errζ̄")
+print_error("  Max error in ∂u/∂ζ for u = ζ² * exp(|ζ|²): ", errζ)
+print_error("  Max error in ∂u/∂ζ̄ for u = ζ² * exp(|ζ|²): ", errζ̄)
 
 # Gradient 
 u = exp.(x .* sin.(y))
@@ -52,18 +62,25 @@ u = exp.(x .* sin.(y))
 ∂u∂x_num, ∂u∂y_num = grad(u, D)
 errx = maximum(abs.(∂u∂x_num .- ∂u∂x))
 erry = maximum(abs.(∂u∂y_num .- ∂u∂y))
-println("  Max error in (∂u/∂x, ∂u/∂y) for u = exp(x * sin(y)): ($errx, $erry)")
+print_error("  Max error in ∂u/∂x for u = exp(x * sin(y)): ", errx)
+print_error("  Max error in ∂u/∂y for u = exp(x * sin(y)): ", erry)
 
 # Laplacian
 u = exp.(x .* sin.(y))
 lapu = (sin.(y).^2 .- x .* sin.(y) + x.^2 .* cos.(y).^2) .* u
 lapu_num = lap(u, D)
 err = maximum(abs.(lapu_num .- lapu))
-println("  Max error in Δu for u = exp(x * sin(y)): $err")
+print_error("  Max error in Δu for u = exp(x * sin(y)): ", err)
 
 println("Testing solvers...")
 
 # Laplace solver
 u = Δ⁻¹(-1, 0, D)
 err = maximum(abs.(u .- 0.25 * (1 .- abs2.(ζ))))
-println("  Max error in Δ⁻¹ for f = -1, g = 0: $err")
+print_error("  Max error in Δ⁻¹ for f = -1, g = 0: ", err)
+
+# Trace
+u = ζ.^5
+Tu = trace(u, D)
+err = maximum(abs.(real.(Tu) .- cos.(5 * D.θ)))
+print_error("  Max error in trace for u = ζ⁵: ", err)

@@ -1,8 +1,11 @@
+
+using SparseArrays: sparse
+
 """
     build_weight_operators(Lspan, Mspan, Nlm)
 
 Build operators for multiplication and division by the weight √(1 - |ζ|²)
-in the spherical-harmonic-on-disk coefficient space.
+in coefficient space.
 
 The weight acts as a tridiagonal coupling in `l` for each fixed `m`,
 via the three-term recurrence for associated Legendre polynomials:
@@ -34,15 +37,15 @@ function build_weight_operators(Lspan, Mspan)
     # then solve the rectangular system via QR.
 
     ib, jb = _select_invertible_subsystem(Lspan, Mspan, Nl)
-    Wb = qr(W[ib, jb])
+    W_qr = qr(W[ib, jb])
 
     function Ŵ⁻¹(f̂)
         û = zeros(ComplexF64, N)
-        û[jb] = Wb \ vec(f̂)[ib]
+        û[jb] = W_qr \ vec(f̂)[ib]
         return reshape(û, size(f̂))
     end
 
-    return Ŵ, Ŵ⁻¹
+    return Ŵ, Ŵ⁻¹, W_qr
 end
 
 

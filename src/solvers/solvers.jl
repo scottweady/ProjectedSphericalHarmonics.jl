@@ -14,7 +14,7 @@ Inverse Laplacian on the disk with Dirichlet boundary conditions.
 # Returns
 - Solution `u` to the Poisson equation Δu = f with u|∂D = g
 """
-function Δ⁻¹(f, g, D)
+function Δ⁻¹(f, g, D::Disk)
 
   # Check if scalar input
   if isa(f, Number)

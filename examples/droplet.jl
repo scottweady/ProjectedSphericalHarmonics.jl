@@ -2,7 +2,7 @@
 using ProjectedSphericalHarmonics
 
 # Dimensionless parameters
-Ra, β, γ = 0, 1, 1
+Ra, β, γ = 1, 1, 0
 
 # List of wavenumbers
 mspan = collect(0 : 8)

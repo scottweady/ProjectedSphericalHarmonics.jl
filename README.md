@@ -7,13 +7,13 @@ A Julia package for solving integro-differential equations on the disk using pro
 The projected spherical harmonics are defined as
 
 ```math
-y_\ell^m(r, \theta) = N_\ell^m P_\ell^m(\sqrt{1 - r^2}) e^{im\theta},
+y_\ell^m(r, \theta) = N_\ell^m P_\ell^{|m|}(\sqrt{1 - r^2}) e^{im\theta},
 ```
 
 where $P_\ell^m$ are the associated Legendre polynomials and
 
 ```math
-N^m_\ell = \sqrt{ \frac{2\ell+1}{2\pi} \frac{(\ell - m)!}{(\ell + m)!} }
+N^m_\ell = \sqrt{ \frac{2\ell+1}{2\pi} \frac{(\ell - |m|)!}{(\ell + |m|)!} }
 ```
 
 is a normalization constant. Functions of the same parity (even or odd $\ell + m$) are orthogonal with respect to the weighted inner product
@@ -70,10 +70,10 @@ u = ylm(l, m, ζ)
 
 # Evaluate the single layer potential and its inverse
 err = 𝒮(u ./ w, D) - (λlm(l, m) * u / 4.0)
-println("Max error in 𝒮 for (l,m) = ($l,$m): ", maximum(abs.(err))) #4.138397277988605e-16
+println("Max error in 𝒮 for (l,m) = ($l,$m): ", maximum(abs.(err)))
 
 err = 𝒮⁻¹(u, D) - (4.0 / λlm(l, m)) * (u ./ w)
-println("Max error in 𝒮⁻¹ for (l,m) = ($l,$m): ", maximum(abs.(err))) #1.7755747746479257e-10
+println("Max error in 𝒮⁻¹ for (l,m) = ($l,$m): ", maximum(abs.(err))) 
 ```
 
 The projected spherical harmonics are also useful for solving Poisson problems:
@@ -93,5 +93,5 @@ f = -1 # right-hand side
 g = 0 # boundary condition
 u = Δ⁻¹(f, g, D)
 err = maximum(abs.(u .- 0.25 * (1 .- abs2.(ζ))))
-println("Max error in Δ⁻¹ for f = -1, g = 0: $err") #2.8866009027414686e-15
+println("Max error in Δ⁻¹ for f = -1, g = 0: $err")
 ```

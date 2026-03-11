@@ -64,12 +64,12 @@ function diskpts(Nr::Int, Nθ::Int, rspan::AbstractVector{T}=[0.0, 1.0], θspan:
 
   # Radial grid
   s, ds = legpts(Nr, sqrt.(1 .- rspan.^2))
-  s, ds = reshape(s, :, 1), reshape(ds, :, 1)
+  s, ds = vec(s), vec(ds)
   r = sqrt.(1 .- s.^2)
 
   # Angular grid
   θ, dθ = trigpts(Nθ, θspan)
-  θ, dθ = reshape(θ, 1, :), reshape(dθ, 1, :)
+  θ, dθ = vec(θ)', vec(dθ)'
 
   # Complex grid
   ζ = r .* exp.(im * θ) 
