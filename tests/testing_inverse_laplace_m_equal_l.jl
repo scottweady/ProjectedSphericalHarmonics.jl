@@ -24,7 +24,7 @@ w = D.w
 r, θ = abs.(ζ), angle.(ζ)
 
 # Single layer operator
-l, m = 2, 2
+l, m = 4, 4
 # u = ylm(l, m, ζ)
 
 f = Plm_.(l, m, sqrt.(1 .- r.^2)) .* exp.(im * m * θ )

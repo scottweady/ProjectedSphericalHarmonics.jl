@@ -24,4 +24,9 @@ export trace
 include("solvers.jl")
 export Δ⁻¹, solve
 
+include("CoefficientSpaceOperators.jl")
+export Inverse_laplacian_coef_m, Inverse_laplacian_coef_m_sparse, Inverse_laplacian, DirichletTraceInverseLaplacian_m, DirichletTraceColumnLaplacian_m, ModifiedPoissonSystemMatrix
+export GenerateSparseMatrix_InverseLaplacian
+export ∂ζΔ⁻¹_m_sparse, ∂ζ̄Δ⁻¹_m_sparse
+
 end

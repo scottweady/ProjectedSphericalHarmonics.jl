@@ -118,12 +118,10 @@ Gradient operator
 Warning: Ill-conditioned, use with caution.
 """
 function grad(u, D)
-
-  ∂u∂ζ = ∂ζ(u, D)
-  ∂u∂x =  2 * real.(∂u∂ζ)
-  ∂u∂y = -2 * imag.(∂u∂ζ)
-  return (∂u∂x, ∂u∂y)
-
+  ∂u∂ζ, ∂u∂ζ̄ = ∂ζ(u, D), ∂ζ̄(u, D)
+  ∂u∂x =   real.(∂u∂ζ + ∂u∂ζ̄)
+  ∂u∂y =  -imag.(∂u∂ζ - ∂u∂ζ̄)
+  return (∂u∂x, ∂u∂y)
 end
 
 """
