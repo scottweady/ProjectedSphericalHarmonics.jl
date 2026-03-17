@@ -273,7 +273,7 @@ w = D.w
 r, θ = abs.(ζ), angle.(ζ)
 
 # setting test function, fix m
-l, m = 8, 0
+l, m = 8, 2
 
 
 u = 2*ylm.(abs(m), m, ζ) + ylm.(l, m, ζ) +  4*ylm.(l+2, m, ζ)
@@ -296,7 +296,7 @@ end
 
 
 abs.(ûᵐ) .> 1e-10
-Δ⁻¹ûᵐ = Inverse_laplacian_coef_m(ûᵐ,Mr, m)
+Δ⁻¹ûᵐ = Inverse_laplacian_coef_m(ûᵐ,Mr-1, m)
 
 psh_coeffs_inv = zeros(ComplexF64, size(psh_coeffs))
 if m >= 0
@@ -340,7 +340,7 @@ norm(ipsh(Δ⁻¹û, D) - u_inv_alt) < 1e-12
 
 x = real.(ζ)
 y = imag.(ζ) 
-u = exp.(-x.*y).*cos.(x.^2)
+u = exp.(-x.*y).*cos.(x.^2) + im*exp.(-x.*y).*sin.(y.^2)
 
 #Expected result
 u_inv_alt = 𝒮(𝒩⁻¹(u, D), D)
@@ -403,13 +403,10 @@ U, Σ4, Vᵗ = svd(Big_System04);
 # setting test function, fix m
 #Positive m
 
-#To do: the aliasing for derivative is wrong, going from even to odd m changes the factor.
-
-
 
 l, m = 7, 3 
 
-μ = ylm.(abs(m), m, ζ) +  4*ylm.(l+2, m, ζ)
+μ = ylm.(abs(m), m, ζ) + 2*ylm.(l+2, m, ζ) + 2*ylm.(l+4, m, ζ)
 # μ = ylm.(abs(m), m, ζ)
 
 μ̂ = psh(μ , D)
@@ -422,11 +419,6 @@ l, m = 7, 3
 partial_ζΔ⁻¹μ_bruteforce = ∂ζ(Δ⁻¹μ, D)
 psh_partial_ζΔ⁻¹μ_bruteforce = psh(partial_ζΔ⁻¹μ_bruteforce, D)
 
-ref_ = (abs.(psh_partial_ζΔ⁻¹μ_bruteforce) .> 1e-10) + 2*(abs.(Δ⁻¹μ̂) .> 1e-10) + 3*(abs.(μ̂) .> 1e-10); 
-ref_[m-1:m+8,m:m+2]
-ref_[m-1:m+8,m] 
-psh_partial_ζΔ⁻¹μ_bruteforce[m:2:end, m]
-
 partial_ζΔ⁻¹μ_sparse = ∂ζΔ⁻¹_m_sparse(μ̂[m+1:2:end, m+1], m, Mr; aliasing = false)
 
 norm(partial_ζΔ⁻¹μ_sparse - psh_partial_ζΔ⁻¹μ_bruteforce[m:2:end, m]) < 10^(-10)
@@ -437,10 +429,44 @@ norm(partial_ζΔ⁻¹μ_sparse - psh_partial_ζΔ⁻¹μ_bruteforce[m:2:end, m]
 
 partial_ζ̄Δ⁻¹μ_bruteforce = ∂ζ̄(Δ⁻¹μ, D)
 psh_partial_ζ̄Δ⁻¹μ_bruteforce = psh(partial_ζ̄Δ⁻¹μ_bruteforce, D)
-ref_ = (abs.(psh_partial_ζ̄Δ⁻¹μ_bruteforce) .> 1e-10) + 2*(abs.(Δ⁻¹μ̂) .> 1e-10) + 3*(abs.(μ̂) .> 1e-10); 
-ref_[m-1:m+10,m:m+2]
 
 partial_ζ̄Δ⁻¹μ_sparse = ∂ζ̄Δ⁻¹_m_sparse(μ̂[m+1:2:end, m+1], m, Mr; aliasing = false)
 
-norm(partial_ζ̄Δ⁻¹μ_sparse -psh_partial_ζ̄Δ⁻¹μ_bruteforce[m:2:end, m+2]) < 10^(-10)
+norm(partial_ζ̄Δ⁻¹μ_sparse -psh_partial_ζ̄Δ⁻¹μ_bruteforce[m:2:end, m+2]) < 10^(-10) 
 
+
+
+#Computing cross terms
+
+# ζ̄∂ζ
+
+l, m = 4, 2 
+
+μ =   4*ylm.(l+4, m, ζ) + ylm.(abs(m), m, ζ) 
+μ̂ = psh(μ , D)
+Δ⁻¹μ = ipsh(Inverse_laplacian(μ̂), D)
+# μ = ylm.(abs(m), m, ζ)
+μ̂ᵐ = μ̂[m+1:2:end, m+1]
+
+res1 = ζ∂ζΔ⁻¹_m_sparse( μ̂ᵐ , m, Mr; aliasing = false)
+
+test_function1 = ζ.*∂ζ(Δ⁻¹μ, D)
+brute_force_res1 = psh(test_function1, D)[m+1:2:end, m+1]
+
+norm(brute_force_res1 - res1) < 10^(-10)
+
+test_function2 = conj.(ζ).*∂ζ̄(Δ⁻¹μ, D)
+brute_force_res2 = psh(test_function2, D)[m+1:2:end, m+1]
+
+res2 = ζ̄∂ζ̄Δ⁻¹_m_sparse( μ̂ᵐ , m, Mr; aliasing = false)
+
+norm(res2 - brute_force_res2)
+ 
+#Full function testing 
+
+μ = exp.(-x.*y).*cos.(x.^2) + im*exp.(-x.*y).*sin.(y.^2)
+μ̂ = psh(μ, D)
+Δ⁻¹μ = ipsh(Inverse_laplacian(μ̂), D)
+
+derivative_brute_force = ∂ζ(Δ⁻¹μ, D)
+∂ζΔ⁻¹( μ̂)
