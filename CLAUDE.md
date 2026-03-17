@@ -8,6 +8,7 @@ Research code for projected spherical harmonics on the disk, with the goal of be
 
 ## Code conventions
 
+
 ### In-place vs out-of-place
 
 - The **in-place** (`!`) version is always the canonical implementation.
@@ -26,7 +27,10 @@ If you encounter existing functions with inconsistent argument order (e.g. `(f̂
 
 ### Naming
 
-- Always use Unicode names (∂ζ, Δ⁻¹, f̂ᵐ, ζ̄, etc.) — never fall back to ASCII equivalents.
+- Struct follow the julia style, Pascal case
+- functions are all lower case, with underscores (snake case)
+- Prefer to not use unicode for internal function or struct naming. Unicode for names should be reserved for public API's
+- Prefer unicode for mathematical symbols (∂ζ, Δ⁻¹, f̂ᵐ, ζ̄, etc.) — never fall back to ASCII equivalents.
 - Internal helper names may use shorter forms (e.g. `_check_inplace_length`) but must still prefer Unicode for mathematical symbols.
 
 ### Negative frequencies
