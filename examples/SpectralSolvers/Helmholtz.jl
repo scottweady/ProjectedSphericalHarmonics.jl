@@ -38,10 +38,10 @@ f̂ = psh(f, D)
 
 
 sum(D.even[:,1])
-ModifiedPoissonSystemMatrix(lmax, 0, k^2) 
+helmholtz_matrix(lmax, 0, k^2) 
 
 
-Problem_matrices = [ModifiedPoissonSystemMatrix(lmax, m, k^2) for m in Array(D.Mspan)];
+Problem_matrices = [helmholtz_matrix(lmax, m, k^2) for m in Array(D.Mspan)];
 
 
 b̂ = [ [ ĝ[i] ; f̂[D.even[:,i], i]] for i in eachindex(Array(D.Mspan))];
@@ -54,7 +54,7 @@ sum(length.(b̂))
 Solution_vector = [ Problem_matrices[i] \ b̂[i] for i in eachindex(Array(D.Mspan))];
 
 #reconstruct u
-Gμ̂ = [ Inverse_laplacian_coef_m_sparse(Solution_vector[i][2:end], lmax, D.Mspan[i]; aliasing = false) for i in eachindex(Array(D.Mspan))]; 
+Gμ̂ = [ Ĝᵐ(Solution_vector[i][2:end], lmax, D.Mspan[i]; aliasing = false) for i in eachindex(Array(D.Mspan))];
 
 û = deepcopy(Gμ̂ )
 for i in eachindex(Array(D.Mspan))

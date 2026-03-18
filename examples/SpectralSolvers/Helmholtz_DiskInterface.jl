@@ -26,7 +26,7 @@ k = 60
 n = 10
 
 # Build per-frequency system matrices
-Problem_matrices = [ModifiedPoissonSystemMatrix(lmax, m, k^2) for m in Mspan];
+Problem_matrices = [helmholtz_matrix(lmax, m, k^2) for m in Mspan];
 
 
 # cond.(Problem_matrices[1]), cond.(Problem_matrices[end])
@@ -43,7 +43,7 @@ Mspan = vec(Array(D.Mspan))
 
 
 # Build per-frequency right-hand side: [boundary_coeff ; even-parity coefficients]
-b̂ = [[ ĝ[i] ; column(f̂_tri, Mspan[i]) ] for i in eachindex(Mspan)];
+b̂ = [[ ĝ[i] ; mode_coefficients(f̂_tri, Mspan[i]) ] for i in eachindex(Mspan)];
 
 # Solve per frequency
 Solution_vector = [Problem_matrices[i] \ b̂[i] for i in eachindex(Mspan)];
@@ -51,7 +51,7 @@ Solution_vector = [Problem_matrices[i] \ b̂[i] for i in eachindex(Mspan)];
 μ̂ = TriangularCoeffArray{Float64}(lmax, Mspan)
 
 for (i, m) in enumerate(Mspan)
-    res = column(μ̂, m)
+    res = mode_coefficients(μ̂, m)
     res .= Solution_vector[i][2:end]
 end
 
@@ -95,4 +95,3 @@ ctr_pos = contour!(ax2, X_samples[1:index_r,:], Y_samples[1:index_r,:], max.(0.0
 ctr_neg = contour!(ax2, X_samples[1:index_r,:], Y_samples[1:index_r,:], min.(0.000, zs[1:index_r,:]); color=:black, levels=levels, labels=false, linestyle=:dash)
 
 display(fig)
-

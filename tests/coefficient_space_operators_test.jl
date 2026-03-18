@@ -63,17 +63,17 @@ function assembled_r_dot_grad_reference(uhat)
     max_mode = min(div(size(uhat, 2) - 1, 2), size(uhat, 1) - 2)
 
     mode0 = @view uhat[1:2:end, 1]
-    reference[1:2:end, 1] .= ζ∂ζΔ⁻¹_m_sparse(mode0, lmax, 0; aliasing=false) .+
-                             ζ̄∂ζ̄Δ⁻¹_m_sparse(mode0, lmax, 0; aliasing=false)
+    reference[1:2:end, 1] .= ζ_∂Ĝᵐ∂ζ(mode0, lmax, 0; aliasing=false) .+
+                             ζ̄_∂Ĝᵐ∂ζ̄(mode0, lmax, 0; aliasing=false)
 
     for m in 1:max_mode
         mode_pos = @view uhat[m+1:2:end, m+1]
-        reference[m+1:2:end, m+1] .= ζ∂ζΔ⁻¹_m_sparse(mode_pos, lmax, m; aliasing=false) .+
-                                     ζ̄∂ζ̄Δ⁻¹_m_sparse(mode_pos, lmax, m; aliasing=false)
+        reference[m+1:2:end, m+1] .= ζ_∂Ĝᵐ∂ζ(mode_pos, lmax, m; aliasing=false) .+
+                                     ζ̄_∂Ĝᵐ∂ζ̄(mode_pos, lmax, m; aliasing=false)
 
         mode_neg = @view uhat[m+1:2:end, end-(m-1)]
-        reference[m+1:2:end, end-(m-1)] .= ζ∂ζΔ⁻¹_m_sparse(mode_neg, lmax, -m; aliasing=false) .+
-                                           ζ̄∂ζ̄Δ⁻¹_m_sparse(mode_neg, lmax, -m; aliasing=false)
+        reference[m+1:2:end, end-(m-1)] .= ζ_∂Ĝᵐ∂ζ(mode_neg, lmax, -m; aliasing=false) .+
+                                           ζ̄_∂Ĝᵐ∂ζ̄(mode_neg, lmax, -m; aliasing=false)
     end
 
     return reference
@@ -119,7 +119,7 @@ end
             @test norm(ipsh(dense_coeffs, D) - u_inv_reference) < 1e-12
 
             sparse_mode = sparse_mode_coefficients(uhat, m)
-            sparse_inverse = Inverse_laplacian_coef_m_sparse(sparse_mode, lmax, m)
+            sparse_inverse = Ĝᵐ(sparse_mode, lmax, m)
             sparse_coeffs = zeros(ComplexF64, size(uhat))
             embed_sparse_mode!(sparse_coeffs, sparse_inverse, m)
             @test norm(ipsh(sparse_coeffs, D) - u_inv_reference) < 1e-12
@@ -156,12 +156,12 @@ end
         uhat = rand(size(D.ζ)...)#psh(u, D)
         sparse_mode = sparse_mode_coefficients(uhat, m)
 
-        matrix = GenerateSparseMatrix_InverseLaplacian(lmax, m)
-        inverse_sparse = Inverse_laplacian_coef_m_sparse(sparse_mode, lmax, m; aliasing=false)
+        matrix = inverse_laplacian_matrix_sparse(lmax, m)
+        inverse_sparse = Ĝᵐ(sparse_mode, lmax, m; aliasing=false)
         @test norm(inverse_sparse - matrix * sparse_mode) < 1e-14
 
-        rectangular = GenerateSparseMatrix_InverseLaplacian(lmax, m; rectangular=true)
-        aliased_inverse = Inverse_laplacian_coef_m_sparse(sparse_mode, lmax, m; aliasing=true)
+        rectangular = inverse_laplacian_matrix_sparse(lmax, m; rectangular=true)
+        aliased_inverse = Ĝᵐ(sparse_mode, lmax, m; aliasing=true)
         @test norm(aliased_inverse - rectangular * sparse_mode) < 1e-14
     end
 end
@@ -174,12 +174,12 @@ end
         uhat = rand(ComplexF64, size(D.ζ)...)
         sparse_mode = sparse_mode_coefficients(uhat, m)
 
-        matrix = GenerateSparseMatrix_ζ∂ζΔ⁻¹(lmax, m)
-        operator_values = ζ∂ζΔ⁻¹_m_sparse(sparse_mode, lmax, m; aliasing=false)
+        matrix = ζ∂ζΔ⁻¹_matrix_sparse(lmax, m)
+        operator_values = ζ_∂Ĝᵐ∂ζ(sparse_mode, lmax, m; aliasing=false)
         @test norm(operator_values - matrix * sparse_mode) < 1e-14
 
-        rectangular = GenerateSparseMatrix_ζ∂ζΔ⁻¹(lmax, m; rectangular=true)
-        operator_values_aliased = ζ∂ζΔ⁻¹_m_sparse(sparse_mode, lmax, m; aliasing=true)
+        rectangular = ζ∂ζΔ⁻¹_matrix_sparse(lmax, m; rectangular=true)
+        operator_values_aliased = ζ_∂Ĝᵐ∂ζ(sparse_mode, lmax, m; aliasing=true)
         @test norm(operator_values_aliased - rectangular * sparse_mode) < 1e-14
     end
 end
@@ -197,10 +197,10 @@ end
         μhat_sparse = sparse_mode_coefficients(μhat, m)
 
         ∂ζ_reference = derivative_reference_coefficients(psh(∂ζ(Δinv_μ, D), D), m, :∂ζ)
-        ∂ζ_sparse = ∂ζΔ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        ∂ζ_sparse = ∂Ĝᵐ∂ζ(μhat_sparse, lmax, m; aliasing=false)
 
         ∂ζ̄_reference = derivative_reference_coefficients(psh(∂ζ̄(Δinv_μ, D), D), m, :∂ζ̄)
-        ∂ζ̄_sparse = ∂ζ̄Δ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        ∂ζ̄_sparse = ∂Ĝᵐ∂ζ̄(μhat_sparse, lmax, m; aliasing=false)
         
 
         @test norm(∂ζ_sparse - ∂ζ_reference) < 1e-10
@@ -255,11 +255,11 @@ end
         μhat_sparse = sparse_mode_coefficients(μhat, m)
 
         ζ∂ζ_reference = same_mode_reference_coefficients(psh(ZETA .* ∂ζ(Δinv_μ, D), D), m)
-        ζ∂ζ_sparse = ζ∂ζΔ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        ζ∂ζ_sparse = ζ_∂Ĝᵐ∂ζ(μhat_sparse, lmax, m; aliasing=false)
         @test norm(ζ∂ζ_sparse - ζ∂ζ_reference) < 1e-10
 
         ζ̄∂ζ̄_reference = same_mode_reference_coefficients(psh(conj.(ZETA) .* ∂ζ̄(Δinv_μ, D), D), m)
-        ζ̄∂ζ̄_sparse = ζ̄∂ζ̄Δ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        ζ̄∂ζ̄_sparse = ζ̄_∂Ĝᵐ∂ζ̄(μhat_sparse, lmax, m; aliasing=false)
         @test norm(ζ̄∂ζ̄_sparse - ζ̄∂ζ̄_reference) < 1e-10
     end
 end
@@ -274,17 +274,17 @@ end
         μhat_sparse = sparse_mode_coefficients(μhat, m)
 
         ∂ζ̄∂ζ̄_reference = second_derivative_reference_coefficients(psh(∂ζ̄(∂ζ̄(Δinv_μ, D), D), D), m, :∂ζ̄∂ζ̄)
-        ∂ζ̄∂ζ̄_sparse = ∂ζ̄∂ζ̄Δ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        ∂ζ̄∂ζ̄_sparse = ∂²Ĝᵐ∂ζ̄²(μhat_sparse, lmax, m; aliasing=false)
 
         @test norm(∂ζ̄∂ζ̄_sparse - ∂ζ̄∂ζ̄_reference) < 1e-10
 
         ∂ζ∂ζ_reference = second_derivative_reference_coefficients(psh(∂ζ(∂ζ(Δinv_μ, D), D), D), m, :∂ζ∂ζ)
-        ∂ζ∂ζ_sparse = ∂ζ∂ζΔ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        ∂ζ∂ζ_sparse = ∂²Ĝᵐ∂ζ²(μhat_sparse, lmax, m; aliasing=false)
 
         @test norm(∂ζ∂ζ_sparse - ∂ζ∂ζ_reference) < 1e-10
 
         ∂ζ∂ζ̄_reference = second_derivative_reference_coefficients(psh(∂ζ(∂ζ̄(Δinv_μ, D), D), D), m, :∂ζ∂ζ̄)
-        ∂ζ∂ζ̄_sparse = ∂ζ∂ζ̄Δ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        ∂ζ∂ζ̄_sparse = ∂²Ĝᵐ∂ζ∂ζ̄(μhat_sparse, lmax, m; aliasing=false)
 
         @test norm(∂ζ∂ζ̄_sparse - ∂ζ∂ζ̄_reference) < 1e-10
     end
@@ -310,7 +310,7 @@ end
     @test norm(computed - reference) < 1e-10
 end
 
-@testset "NeumannTraceΔ⁻¹_sparse" begin
+@testset "neumann_traceĜ" begin
     mode_cases = ((8, 2), (9, 3), (10, -2), (11, -3), (10, 0))
     # l,m = 8,2
 
@@ -319,22 +319,22 @@ end
         fhat = psh(f, D)
         mode_coeffs = sparse_mode_coefficients(fhat, m)
 
-        inverse_mode = Inverse_laplacian_coef_m_sparse(mode_coeffs, lmax, m; aliasing=false)
+        inverse_mode = Ĝᵐ(mode_coeffs, lmax, m; aliasing=false)
         inverse_coeffs = zeros(ComplexF64, size(fhat))
         embed_sparse_mode!(inverse_coeffs, inverse_mode, m)
         boundary_values = vec(∂n(ipsh(inverse_coeffs, D), D))
         boundary_coeffs = fft(boundary_values) / length(boundary_values)
 
 
-        @test abs(NeumannTraceΔ⁻¹_sparse(mode_coeffs, lmax, m) - boundary_coeffs[mode_column_index(m)]) < 1e-10
+        @test abs(neumann_traceĜ(mode_coeffs, lmax, m) - boundary_coeffs[mode_column_index(m)]) < 1e-10
     end
 
     f = 1 .+ ylm.(4, 0, ZETA) .+ ylm.(6, 2, ZETA) .+ ylm.(7, -3, ZETA)
     fhat = psh(f, D)
     inverse_coeffs = zeros(ComplexF64, size(fhat))
-    inverse_coeffs[1:2:end, 1] .= Inverse_laplacian_coef_m_sparse(@view(fhat[1:2:end, 1]), lmax, 0; aliasing=false)
-    embed_sparse_mode!(inverse_coeffs, Inverse_laplacian_coef_m_sparse(@view(fhat[3:2:end, 3]), lmax, 2; aliasing=false), 2)
-    embed_sparse_mode!(inverse_coeffs, Inverse_laplacian_coef_m_sparse(@view(fhat[4:2:end, end-2]), lmax, -3; aliasing=false), -3)
+    inverse_coeffs[1:2:end, 1] .= Ĝᵐ(@view(fhat[1:2:end, 1]), lmax, 0; aliasing=false)
+    embed_sparse_mode!(inverse_coeffs, Ĝᵐ(@view(fhat[3:2:end, 3]), lmax, 2; aliasing=false), 2)
+    embed_sparse_mode!(inverse_coeffs, Ĝᵐ(@view(fhat[4:2:end, end-2]), lmax, -3; aliasing=false), -3)
 
     boundary_values = vec(∂n(ipsh(inverse_coeffs, D), D))
     boundary_coeffs = fft(boundary_values) / length(boundary_values)
@@ -344,7 +344,7 @@ end
     expected[3] = boundary_coeffs[3]
     expected[end-2] = boundary_coeffs[end-2]
 
-    @test norm(NeumannTraceΔ⁻¹_sparse(fhat) - expected) < 1e-10
+    @test norm(neumann_traceĜ(fhat) - expected) < 1e-10
 end
 
 
@@ -375,8 +375,8 @@ end
         reference = derivative_reference_coefficients(psh(op === :∂ζ ? ∂ζ(Δinv_μ, D) : ∂ζ̄(Δinv_μ, D), D), m_in, op)
 
         sparse_result = op === :∂ζ ?
-            ∂ζΔ⁻¹_m_sparse(μhat_sparse, lmax, m_in; aliasing=false) :
-            ∂ζ̄Δ⁻¹_m_sparse(μhat_sparse, lmax, m_in; aliasing=false)
+            ∂Ĝᵐ∂ζ(μhat_sparse, lmax, m_in; aliasing=false) :
+            ∂Ĝᵐ∂ζ̄(μhat_sparse, lmax, m_in; aliasing=false)
 
         @testset "$(op) m=$m_in → m=$m_out" begin
             @test norm(sparse_result - reference) < 1e-10
@@ -405,7 +405,7 @@ end
         μhat_sparse = sparse_mode_coefficients(μhat, m)
 
         reference = second_derivative_reference_coefficients(psh(∂ζ(∂ζ(Δinv_μ, D), D), D), m, :∂ζ∂ζ)
-        sparse_result = ∂ζ∂ζΔ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        sparse_result = ∂²Ĝᵐ∂ζ²(μhat_sparse, lmax, m; aliasing=false)
 
         @testset "∂ζ∂ζ m=$m → m=$m_out" begin
             @test norm(sparse_result - reference) < 1e-10
@@ -420,7 +420,7 @@ end
         μhat_sparse = sparse_mode_coefficients(μhat, m)
 
         reference = second_derivative_reference_coefficients(psh(∂ζ̄(∂ζ̄(Δinv_μ, D), D), D), m, :∂ζ̄∂ζ̄)
-        sparse_result = ∂ζ̄∂ζ̄Δ⁻¹_m_sparse(μhat_sparse, lmax, m; aliasing=false)
+        sparse_result = ∂²Ĝᵐ∂ζ̄²(μhat_sparse, lmax, m; aliasing=false)
 
         @testset "∂ζ̄∂ζ̄ m=$m → m=$m_out" begin
             @test norm(sparse_result - reference) < 1e-10
@@ -432,7 +432,7 @@ end
     bessel_zeros = (2.40482555769577, 11.791534439014281)
 
     for α in bessel_zeros
-        singular_values = svd(ModifiedPoissonSystemMatrix(lmax, 0, α^2)).S
+        singular_values = svd(helmholtz_matrix(lmax, 0, α^2)).S
         @test singular_values[end] < 1e-14
         @test singular_values[end - 1] > 1e-14
     end

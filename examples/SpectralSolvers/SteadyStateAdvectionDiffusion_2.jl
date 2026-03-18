@@ -21,18 +21,18 @@ using Krylov
 #
 # Since u_h depends linearly on μ via the BC, eliminating u_h yields:
 #
-#   [I + 2a ∂ζΔ⁻¹ + 2ā ∂ζ̄Δ⁻¹ - 2(a ∂ζ + ā ∂ζ̄)∘SolveHarmonic∘DirichletTrace∘Δ⁻¹] μ
+#   [I + 2a ∂ζΔ⁻¹ + 2ā ∂ζ̄Δ⁻¹ - 2(a ∂ζ + ā ∂ζ̄)∘SolveHarmonic∘trace∘Δ⁻¹] μ
 #       = f - 2(a ∂ζ + ā ∂ζ̄) SolveHarmonic(g)
 #
 # The GMRES unknown μ is a TriangularCoeffArray (PSH coefficient space), NOT a
 # nodal grid of size Nr × Nθ. The per-frequency operators are applied directly,
 # exploiting the frequency-shift rules:
-#   ∂ζΔ⁻¹_m_sparse  : input at freq m → output at freq m-1
-#   ∂ζ̄Δ⁻¹_m_sparse : input at freq m → output at freq m+1
+#   ∂Ĝᵐ∂ζ  : input at freq m → output at freq m-1
+#   ∂Ĝᵐ∂ζ̄ : input at freq m → output at freq m+1
 # To fill column m of the result:
-#   ∂ζΔ⁻¹ contribution: feed column(μ, m+1)  [shifts m+1 → m]
-#   ∂ζ̄Δ⁻¹ contribution: feed column(μ, m-1) [shifts m-1 → m]
-# The harmonic correction only populates column(result, m)[1] (l = |m| mode).
+#   ∂ζΔ⁻¹ contribution: feed mode_coefficients(μ, m+1)  [shifts m+1 → m]
+#   ∂ζ̄Δ⁻¹ contribution: feed mode_coefficients(μ, m-1) [shifts m-1 → m]
+# The harmonic correction only populates mode_coefficients(result, m)[1] (l = |m| mode).
 
 
 # ─── Helper: reshape flat vector → TriangularCoeffArray ──────────────────────
@@ -56,10 +56,10 @@ end
 
 Apply the advection-diffusion operator in PSH coefficient space:
     Aμ = μ + 2a ∂ζΔ⁻¹μ + 2ā ∂ζ̄Δ⁻¹μ
-           - 2(a ∂ζ + ā ∂ζ̄) SolveHarmonic(DirichletTrace(Δ⁻¹μ))
+           - 2(a ∂ζ + ā ∂ζ̄) SolveHarmonic(trace(Δ⁻¹μ))
 
 Terms 2–3 are assembled per-frequency using the sparse operators.
-Term 4 is purely harmonic and contributes only to column(result, m)[1].
+Term 4 is purely harmonic and contributes only to mode_coefficients(result, m)[1].
 
 # Arguments
 - `μ_tri` : source density as a `TriangularCoeffArray`
@@ -79,12 +79,12 @@ function _apply_A_coeff(μ_tri::TriangularCoeffArray, a, D)
     u = DiskFunction(μ_tri, Dl; derivatives = ((1,0), (0,1)))
 
 
-    # Harmonic correction: compute û_h from DirichletTrace(Δ⁻¹μ), then subtract
+    # Harmonic correction: compute û_h from trace(Δ⁻¹μ), then subtract
     # 2(a ∂ζ + ā ∂ζ̄) u_h from the l = |m| mode of each column.
     N_m       = length(Mspan)
     trace_hat = zeros(ComplexF64, N_m)
     for (i, m) in enumerate(Mspan)
-        trace_hat[i] = DirichletTraceInverseLaplacian_m(column(μ_tri, m), lmax, m)
+        trace_hat[i] = traceĜ(mode_coefficients(μ_tri, m), lmax, m)
     end
 
     û_h  = [trace_hat[i] / ylm(abs(Mspan[i]), Mspan[i], 1.0) for i in 1:N_m]
@@ -94,7 +94,7 @@ function _apply_A_coeff(μ_tri::TriangularCoeffArray, a, D)
     ∂ζ̄_HarmonicFunction!(dû_ζ̄, û_h, Mspan)
 
     for (i, m) in enumerate(Mspan)
-        column(result, m)[1] -= 2*(a * dû_ζ[i] + conj(a) * dû_ζ̄[i])
+        mode_coefficients(result, m)[1] -= 2*(a * dû_ζ[i] + conj(a) * dû_ζ̄[i])
     end
 
     return result

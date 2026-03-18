@@ -105,3 +105,11 @@ end
 function ipsh(û, D; parity=:even)
   return ipsh(û, D, D.r, parity=parity)
 end
+
+
+function pshtransform(û, D; parity=:even)
+
+  
+
+
+end

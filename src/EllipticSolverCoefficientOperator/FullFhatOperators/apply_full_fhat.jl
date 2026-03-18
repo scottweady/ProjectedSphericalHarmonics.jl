@@ -28,16 +28,16 @@ function ∂ζ̄Δ⁻¹(f̂)
     lmax = size(f̂, 1) - 1
     ∂ζ̄Δ⁻¹f̂ = zeros(ComplexF64, size(f̂))
     f̂⁰ = @view(f̂[1:2:end, 1])
-    ∂ζ̄Δ⁻¹f̂⁰ = ζ∂ζΔ⁻¹_m_sparse(f̂⁰, lmax, 0; aliasing=false)
+    ∂ζ̄Δ⁻¹f̂⁰ = ζ_∂Ĝᵐ∂ζ(f̂⁰, lmax, 0; aliasing=false)
     ∂ζ̄Δ⁻¹f̂[2:2:end, 2] .= ∂ζ̄Δ⁻¹f̂⁰
 
     for m in 1:div(size(f̂, 2) - 1, 2)
         f̂ᵐ = @view(f̂[m + 1:2:end, m + 1])
-        ∂ζ̄Δ⁻¹f̂ᵐ = ζ∂ζΔ⁻¹_m_sparse(f̂ᵐ, lmax, m; aliasing=false)
+        ∂ζ̄Δ⁻¹f̂ᵐ = ζ_∂Ĝᵐ∂ζ(f̂ᵐ, lmax, m; aliasing=false)
         ∂ζ̄Δ⁻¹f̂[m + 1:2:end, m + 1] .= ∂ζ̄Δ⁻¹f̂ᵐ
 
         f̂⁻ᵐ = @view(f̂[m + 1:2:end, end - (m - 1)])
-        ∂ζ̄Δ⁻¹f̂⁻ᵐ = ζ∂ζΔ⁻¹_m_sparse(f̂⁻ᵐ, lmax, -m; aliasing=false)
+        ∂ζ̄Δ⁻¹f̂⁻ᵐ = ζ_∂Ĝᵐ∂ζ(f̂⁻ᵐ, lmax, -m; aliasing=false)
         ∂ζ̄Δ⁻¹f̂[m + 1:2:end, end - (m - 1)] .= ∂ζ̄Δ⁻¹f̂⁻ᵐ
     end
 
@@ -51,16 +51,16 @@ function ∂ζΔ⁻¹(f̂)
     lmax = size(f̂, 1) - 1
     ∂ζΔ⁻¹f̂ = zeros(ComplexF64, size(f̂))
     f̂⁰ = @view(f̂[1:2:end, 1])
-    ∂ζΔ⁻¹f̂⁰ = ∂ζΔ⁻¹_m_sparse(f̂⁰, lmax, 0; aliasing=false)
+    ∂ζΔ⁻¹f̂⁰ = ∂Ĝᵐ∂ζ(f̂⁰, lmax, 0; aliasing=false)
     ∂ζΔ⁻¹f̂[2:2:end, 2] .= ∂ζΔ⁻¹f̂⁰
 
     for m in 1:div(size(f̂, 2) - 1, 2)
         f̂ᵐ = @view(f̂[m + 1:2:end, m + 1])
-        ∂ζΔ⁻¹f̂ᵐ = ∂ζΔ⁻¹_m_sparse(f̂ᵐ, lmax, m; aliasing=false)
+        ∂ζΔ⁻¹f̂ᵐ = ∂Ĝᵐ∂ζ(f̂ᵐ, lmax, m; aliasing=false)
         ∂ζΔ⁻¹f̂[m + 1:2:end, m + 1] .= ∂ζΔ⁻¹f̂ᵐ
 
         f̂⁻ᵐ = @view(f̂[m + 1:2:end, end - (m - 1)])
-        ∂ζΔ⁻¹f̂⁻ᵐ = ∂ζΔ⁻¹_m_sparse(f̂⁻ᵐ, lmax, -m; aliasing=false)
+        ∂ζΔ⁻¹f̂⁻ᵐ = ∂Ĝᵐ∂ζ(f̂⁻ᵐ, lmax, -m; aliasing=false)
         ∂ζΔ⁻¹f̂[m + 1:2:end, end - (m - 1)] .= ∂ζΔ⁻¹f̂⁻ᵐ
     end
 
@@ -72,19 +72,19 @@ function r_dot_∇Δ⁻¹(f̂)
     r_dot_∇Δ⁻¹f̂ = zeros(ComplexF64, size(f̂))
 
     f̂⁰ = @view f̂[1:2:end, 1]
-    r_dot_∇Δ⁻¹f̂⁰ = ζ∂ζΔ⁻¹_m_sparse(f̂⁰, lmax, 0; aliasing=false) .+
-                    ζ̄∂ζ̄Δ⁻¹_m_sparse(f̂⁰, lmax, 0; aliasing=false)
+    r_dot_∇Δ⁻¹f̂⁰ = ζ_∂Ĝᵐ∂ζ(f̂⁰, lmax, 0; aliasing=false) .+
+                    ζ̄_∂Ĝᵐ∂ζ̄(f̂⁰, lmax, 0; aliasing=false)
     r_dot_∇Δ⁻¹f̂[1:2:end, 1] .= r_dot_∇Δ⁻¹f̂⁰
 
     for m in 1:min(div(size(f̂, 2) - 1, 2), lmax)
         f̂ᵐ = @view f̂[m + 1:2:end, m + 1]
-        r_dot_∇Δ⁻¹f̂ᵐ = ζ∂ζΔ⁻¹_m_sparse(f̂ᵐ, lmax, m; aliasing=false) .+
-                        ζ̄∂ζ̄Δ⁻¹_m_sparse(f̂ᵐ, lmax, m; aliasing=false)
+        r_dot_∇Δ⁻¹f̂ᵐ = ζ_∂Ĝᵐ∂ζ(f̂ᵐ, lmax, m; aliasing=false) .+
+                        ζ̄_∂Ĝᵐ∂ζ̄(f̂ᵐ, lmax, m; aliasing=false)
         r_dot_∇Δ⁻¹f̂[m + 1:2:end, m + 1] .= r_dot_∇Δ⁻¹f̂ᵐ
 
         f̂⁻ᵐ = @view f̂[m + 1:2:end, end - (m - 1)]
-        r_dot_∇Δ⁻¹f̂⁻ᵐ = ζ∂ζΔ⁻¹_m_sparse(f̂⁻ᵐ, lmax, -m; aliasing=false) .+
-                         ζ̄∂ζ̄Δ⁻¹_m_sparse(f̂⁻ᵐ, lmax, -m; aliasing=false)
+        r_dot_∇Δ⁻¹f̂⁻ᵐ = ζ_∂Ĝᵐ∂ζ(f̂⁻ᵐ, lmax, -m; aliasing=false) .+
+                         ζ̄_∂Ĝᵐ∂ζ̄(f̂⁻ᵐ, lmax, -m; aliasing=false)
         r_dot_∇Δ⁻¹f̂[m + 1:2:end, end - (m - 1)] .= r_dot_∇Δ⁻¹f̂⁻ᵐ
     end
 
@@ -156,26 +156,26 @@ function r_dot_∇Δ⁻¹(u, D)
     return ipsh(r_dot_∇Δ⁻¹(psh(u, D)), D)
 end
 
-function NeumannTraceΔ⁻¹_sparse(f̂)
+function neumann_traceĜ(f̂)
     lmax = size(f̂, 1) - 1
     trace_coeffs = zeros(ComplexF64, size(f̂, 2))
 
     f̂⁰ = @view f̂[1:2:end, 1]
-    trace_coeffs[1] = NeumannTraceΔ⁻¹_sparse(f̂⁰, lmax, 0)
+    trace_coeffs[1] = neumann_traceĜ(f̂⁰, lmax, 0)
 
     for m in 1:div(size(f̂, 2) - 1, 2)
         f̂ᵐ = @view f̂[m + 1:2:end, m + 1]
-        trace_coeffs[m + 1] = NeumannTraceΔ⁻¹_sparse(f̂ᵐ, lmax, m)
+        trace_coeffs[m + 1] = neumann_traceĜ(f̂ᵐ, lmax, m)
 
         f̂⁻ᵐ = @view f̂[m + 1:2:end, end - (m - 1)]
-        trace_coeffs[end - (m - 1)] = NeumannTraceΔ⁻¹_sparse(f̂⁻ᵐ, lmax, -m)
+        trace_coeffs[end - (m - 1)] = neumann_traceĜ(f̂⁻ᵐ, lmax, -m)
     end
 
     return trace_coeffs
 end
 
 """
-    NeumannTraceΔ⁻¹_sparse(u, D)
+    neumann_traceĜ(u, D)
 
 Normal derivative on the boundary of the inverse Laplacian, computed in coefficient space.
 
@@ -186,7 +186,7 @@ Normal derivative on the boundary of the inverse Laplacian, computed in coeffici
 # Returns
 - normal derivative on ∂D of the solution to Δv = u with v|∂D = 0
 """
-function NeumannTraceΔ⁻¹_sparse(u, D)
-    trace_coeffs = NeumannTraceΔ⁻¹_sparse(psh(u, D))
+function neumann_traceĜ(u, D)
+    trace_coeffs = neumann_traceĜ(psh(u, D))
     return ifft(trace_coeffs) * length(trace_coeffs)
 end

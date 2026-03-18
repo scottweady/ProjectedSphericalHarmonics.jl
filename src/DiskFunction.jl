@@ -121,13 +121,13 @@ function _fill_derivative_slot!(df::DiskFunction{T}, f̂_tri::TriangularCoeffArr
         f̂ᵐ    = f̂_tri.data[idx_in]
         dest   = df._coeffs[k].data[idx_out]
         if     i == 1 && j == 0
-            ∂ζΔ⁻¹_m_sparse!(dest, f̂ᵐ, lmax, m_in; aliasing=false)
+            ∂Ĝᵐ∂ζ!(dest, f̂ᵐ, lmax, m_in; aliasing=false)
         elseif i == 0 && j == 1
-            ∂ζ̄Δ⁻¹_m_sparse!(dest, f̂ᵐ, lmax, m_in; aliasing=false)
+            ∂Ĝᵐ∂ζ̄!(dest, f̂ᵐ, lmax, m_in; aliasing=false)
         elseif i == 2 && j == 0
-            ∂ζ∂ζΔ⁻¹_m_sparse!(dest, f̂ᵐ, lmax, m_in)
+            ∂²Ĝᵐ∂ζ²!(dest, f̂ᵐ, lmax, m_in)
         elseif i == 0 && j == 2
-            ∂ζ̄∂ζ̄Δ⁻¹_m_sparse!(dest, f̂ᵐ, lmax, m_in)
+            ∂²Ĝᵐ∂ζ̄²!(dest, f̂ᵐ, lmax, m_in)
         else
             error("_fill_derivative_slot!: unsupported (i=$i, j=$j); use DiskFunction! for (0,0) and (1,1)")
         end
@@ -157,7 +157,7 @@ function DiskFunction!(df::DiskFunction{T}, f̂_tri::TriangularCoeffArray; deriv
     for (i, m) in enumerate(df.Mspan)
         f̂ᵐ = f̂_tri.data[i]
         tmp = zeros(Complex{T}, length(f̂ᵐ) + 1)
-        Inverse_laplacian_coef_m_sparse!(tmp, f̂ᵐ, lmax, m)
+        Ĝᵐ!(tmp, f̂ᵐ, lmax, m)
         df._coeffs[1].data[i]  .= tmp[1:end-1]
         df.aliasing_factors[i]  = tmp[end]
         df._coeffs[5].data[i]  .= f̂ᵐ ./ 4
@@ -263,7 +263,7 @@ function ∂ζ(df::DiskFunction, D::disk)
         m_out = m - 1
         abs(m_out) > Mθ && continue
         f̂ᵐ = 4 .* df._coeffs[5].data[i]
-        ∂ζΔ⁻¹_m_sparse!(column(results_sparse, m_out), f̂ᵐ, lmax, m; aliasing=false)
+        ∂Ĝᵐ∂ζ!(mode_coefficients(results_sparse, m_out), f̂ᵐ, lmax, m; aliasing=false)
     end
     return ipsh(TriangularArrayToPSH(results_sparse, D), D)
 end
@@ -288,7 +288,7 @@ function ∂ζ̄(df::DiskFunction, D::disk)
         m_out = m + 1
         abs(m_out) > Mθ && continue
         f̂ᵐ = 4 .* df._coeffs[5].data[i]
-        ∂ζ̄Δ⁻¹_m_sparse!(column(results_sparse, m_out), f̂ᵐ, lmax, m; aliasing=false)
+        ∂Ĝᵐ∂ζ̄!(mode_coefficients(results_sparse, m_out), f̂ᵐ, lmax, m; aliasing=false)
     end
     return ipsh(TriangularArrayToPSH(results_sparse, D), D)
 end

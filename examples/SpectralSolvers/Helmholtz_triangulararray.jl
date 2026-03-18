@@ -26,11 +26,10 @@ k = 60
 n = 10
 
 # Build per-frequency system matrices
-Problem_matrices = [ModifiedPoissonSystemMatrix(lmax, m, k^2) for m in Mspan];
+Problem_matrices = [helmholtz_matrix(lmax, m, k^2) for m in Mspan];
 
 
 # cond.(Problem_matrices[1]), cond.(Problem_matrices[end])
-
 
 f =  k^2*exp.(-abs2.(D.ζ .- (0.4 + 0.3*im)))
 g = y_boundary .* cos.(n * x_boundary)
@@ -43,7 +42,7 @@ Mspan = vec(Array(D.Mspan))
 
 
 # Build per-frequency right-hand side: [boundary_coeff ; even-parity coefficients]
-b̂ = [[ ĝ[i] ; column(f̂_tri, Mspan[i]) ] for i in eachindex(Mspan)];
+b̂ = [[ ĝ[i] ; mode_coefficients(f̂_tri, Mspan[i]) ] for i in eachindex(Mspan)];
 
 # Solve per frequency
 Solution_vector = [Problem_matrices[i] \ b̂[i] for i in eachindex(Mspan)];
@@ -52,8 +51,8 @@ Solution_vector = [Problem_matrices[i] \ b̂[i] for i in eachindex(Mspan)];
 û_tri = TriangularCoeffArray{Float64}(lmax, Mspan)
 
 for (i, m) in enumerate(Mspan)
-    res = column(û_tri, m)
-    Inverse_laplacian_coef_m_sparse!(res, Solution_vector[i][2:end], lmax, m)
+    res = mode_coefficients(û_tri, m)
+    Ĝᵐ!(res, Solution_vector[i][2:end], lmax, m)
     res[1] += Solution_vector[i][1]
 end
 

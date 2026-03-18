@@ -30,7 +30,7 @@ for i in eachindex(lmax_list)
 
 
     # Build per-frequency system matrices
-    Problem_matrices = [ModifiedPoissonSystemMatrix(lmax, m, 50) for m in Mspan];
+    Problem_matrices = [helmholtz_matrix(lmax, m, 50) for m in Mspan];
 
 
     condi =  cond.(Problem_matrices)
@@ -52,5 +52,4 @@ for i in eachindex(lmax_list)
     println("xxxxx")
 
 end
-
 

@@ -1,0 +1,6 @@
+include("struct.jl")
+include("array_interface.jl")
+include("display.jl")
+include("arithmetic.jl")
+include("conversions_triangular.jl")
+include("reorder.jl")

@@ -5,9 +5,9 @@ function _check_inplace_length(opname, res, minlen)
 end
 
 """
-    Inverse_laplacian_coef_m_sparse!(res, f̂ᵐ, lmax, m)
+    Ĝᵐ!(res, f̂ᵐ, lmax, m)
 
-Apply Δ⁻¹ to the frequency-`m` spherical harmonic coefficients in-place, using the sparse
+Apply 𝒮𝒩⁻¹ to the frequency-`m` spherical harmonic coefficients in-place, using the sparse
 coefficient layout (only degrees `l` with `l + m` even are stored).
 
 The sparse index `i` corresponds to degree `l = |m| + 2*(i-1)`. For `m < 0`, conjugate
@@ -22,17 +22,18 @@ symmetry is used: the result is `conj(Δ⁻¹(conj(f̂ᵐ)))` evaluated at frequ
 # Returns
 - `res`
 """
-function Inverse_laplacian_coef_m_sparse!(res, f̂ᵐ, lmax, m)
+
+function Ĝᵐ!(res, f̂ᵐ, lmax, m)
     fill!(res, 0)
 
     if m < 0
         tmp = similar(res)
-        Inverse_laplacian_coef_m_sparse!(tmp, conj.(f̂ᵐ), lmax, -m)
+        Ĝᵐ!(tmp, conj.(f̂ᵐ), lmax, -m)
         res .= conj.(tmp)
         return res
     end
 
-    _check_inplace_length("Inverse_laplacian_coef_m_sparse!", res, length(f̂ᵐ))
+    _check_inplace_length("Ĝᵐ!", res, length(f̂ᵐ))
     aliased_output = length(res) > length(f̂ᵐ)
 
     if isempty(f̂ᵐ)
@@ -65,9 +66,9 @@ end
 #First Derivative
 
 """
-    ∂ζΔ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m; aliasing=false)
+    ∂Ĝᵐ∂ζ!(res, μ̂ₘ, lmax, m; aliasing=false)
 
-Apply ∂ζΔ⁻¹ to the frequency-`m` sparse coefficients in-place.
+Apply ∂/∂ζ 𝒮𝒩⁻¹ to the frequency-`m` sparse coefficients in-place.
 
 ∂ζ decrements the azimuthal frequency by 1, so the output represents coefficients at
 frequency `m - 1`. For `m < 0`, the operator is mapped to `conj(∂ζ̄Δ⁻¹(conj(μ̂ₘ)))` at
@@ -83,16 +84,16 @@ frequency `-m` via conjugate symmetry.
 # Returns
 - `res`
 """
-function ∂ζΔ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m; aliasing = false)
+function ∂Ĝᵐ∂ζ!(res, μ̂ₘ, lmax, m; aliasing = false)
     fill!(res, 0)
 
     base_len = ∂ζ_indexing_sparse(lmax, m; aliasing = aliasing)
-    _check_inplace_length("∂ζΔ⁻¹_m_sparse!", res, base_len)
+    _check_inplace_length("∂Ĝᵐ∂ζ!", res, base_len)
     aliased_output = length(res) > base_len
 
     if m < 0
         tmp = similar(res)
-        ∂ζ̄Δ⁻¹_m_sparse!(tmp, conj.(μ̂ₘ), lmax, -m; aliasing = aliasing)
+        ∂Ĝᵐ∂ζ̄!(tmp, conj.(μ̂ₘ), lmax, -m; aliasing = aliasing)
         res .= conj.(tmp)
         return res
     end
@@ -145,10 +146,11 @@ function ∂ζΔ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m; aliasing = false)
     
 end
 
-"""
-    ∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m; aliasing=false)
 
-Apply ∂ζ̄Δ⁻¹ to the frequency-`m` sparse coefficients in-place.
+"""
+    ∂Ĝᵐ∂ζ̄!(res, μ̂ₘ, lmax, m; aliasing=false)
+
+Apply ∂/∂ζ̄ 𝒮𝒩⁻¹ to the frequency-`m` sparse coefficients in-place.
 
 ∂ζ̄ increments the azimuthal frequency by 1, so the output represents coefficients at
 frequency `m + 1`. For `m < 0`, the operator is mapped to `conj(∂ζΔ⁻¹(conj(μ̂ₘ)))` at
@@ -164,16 +166,16 @@ frequency `-m` via conjugate symmetry.
 # Returns
 - `res`
 """
-function ∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m; aliasing = false)
+function ∂Ĝᵐ∂ζ̄!(res, μ̂ₘ, lmax, m; aliasing = false)
     fill!(res, 0)
 
     base_len = ∂ζ̄_indexing_sparse(lmax, m; aliasing = aliasing)
-    _check_inplace_length("∂ζ̄Δ⁻¹_m_sparse!", res, base_len)
+    _check_inplace_length("∂Ĝᵐ∂ζ̄!", res, base_len)
     aliased_output = length(res) > base_len
 
     if m < 0
         tmp = similar(res)
-        ∂ζΔ⁻¹_m_sparse!(tmp, conj.(μ̂ₘ), lmax, -m)
+        ∂Ĝᵐ∂ζ!(tmp, conj.(μ̂ₘ), lmax, -m)
         res .= conj.(tmp)
         return res
     end
@@ -201,9 +203,9 @@ function ∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m; aliasing = false)
 end
 
 """
-    ζ∂ζΔ⁻¹_m_sparse!(res, f̂ᵐ, lmax, m)
+    ζ_∂Ĝᵐ∂ζ!(res, f̂ᵐ, lmax, m)
 
-Apply ζ∂ζΔ⁻¹ to the frequency-`m` sparse coefficients in-place.
+Apply ζ * ∂/∂ζ 𝒮𝒩⁻¹ to the frequency-`m` sparse coefficients in-place.
 
 The output is at the same frequency `m` as the input. For `m < 0`, the operator is mapped
 to `conj(ζ̄∂ζ̄Δ⁻¹(conj(f̂ᵐ)))` at frequency `-m` via conjugate symmetry.
@@ -217,14 +219,15 @@ to `conj(ζ̄∂ζ̄Δ⁻¹(conj(f̂ᵐ)))` at frequency `-m` via conjugate symm
 # Returns
 - `res`
 """
-function ζ∂ζΔ⁻¹_m_sparse!(res, f̂ᵐ, lmax, m)
+
+function ζ_∂Ĝᵐ∂ζ!(res, f̂ᵐ, lmax, m)
     fill!(res, 0)
-    _check_inplace_length("ζ∂ζΔ⁻¹_m_sparse!", res, length(f̂ᵐ))
+    _check_inplace_length("ζ_∂Ĝᵐ∂ζ!", res, length(f̂ᵐ))
     aliased_output = length(res) > length(f̂ᵐ)
 
     if m < 0
         tmp = similar(res)
-        ζ̄∂ζ̄Δ⁻¹_m_sparse!(tmp, conj.(f̂ᵐ), lmax, -m)
+        ζ̄_∂Ĝᵐ∂ζ̄!(tmp, conj.(f̂ᵐ), lmax, -m)
         res .= conj.(tmp)
         return res
     end
@@ -262,9 +265,9 @@ function ζ∂ζΔ⁻¹_m_sparse!(res, f̂ᵐ, lmax, m)
 end
 
 """
-    ζ̄∂ζ̄Δ⁻¹_m_sparse!(res, f̂ᵐ, lmax, m)
+    ζ̄_∂Ĝᵐ∂ζ̄!(res, f̂ᵐ, lmax, m)
 
-Apply ζ̄∂ζ̄Δ⁻¹ to the frequency-`m` sparse coefficients in-place.
+Apply ζ̄ * ∂/∂ζ̄ 𝒮𝒩⁻¹ to the frequency-`m` sparse coefficients in-place.
 
 The output is at the same frequency `m` as the input. For `m < 0`, the operator is mapped
 to `conj(ζ∂ζΔ⁻¹(conj(f̂ᵐ)))` at frequency `-m` via conjugate symmetry.
@@ -278,14 +281,15 @@ to `conj(ζ∂ζΔ⁻¹(conj(f̂ᵐ)))` at frequency `-m` via conjugate symmetry
 # Returns
 - `res`
 """
-function ζ̄∂ζ̄Δ⁻¹_m_sparse!(res, f̂ᵐ, lmax, m)
+
+function ζ̄_∂Ĝᵐ∂ζ̄!(res, f̂ᵐ, lmax, m)
     fill!(res, 0)
-    _check_inplace_length("ζ̄∂ζ̄Δ⁻¹_m_sparse!", res, length(f̂ᵐ))
+    _check_inplace_length("ζ̄_∂Ĝᵐ∂ζ̄!", res, length(f̂ᵐ))
     aliased_output = length(res) > length(f̂ᵐ)
 
     if m < 0
         tmp = similar(res)
-        ζ∂ζΔ⁻¹_m_sparse!(tmp, conj.(f̂ᵐ), lmax, -m)
+        ζ_∂Ĝᵐ∂ζ!(tmp, conj.(f̂ᵐ), lmax, -m)
         res .= conj.(tmp)
         return res
     end
@@ -336,9 +340,9 @@ function _normalized_second_derivative_ratio(l, m, p, q)
 end
 
 """
-    ∂ζ̄∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+    ∂²Ĝᵐ∂ζ̄²!(res, μ̂ₘ, lmax, m)
 
-Apply ∂ζ̄²Δ⁻¹ to the frequency-`m` sparse coefficients in-place.
+Apply (∂/∂ζ̄)² 𝒮𝒩⁻¹ to the frequency-`m` sparse coefficients in-place.
 
 Two applications of ∂ζ̄ increment the azimuthal frequency by 2, so the output represents
 coefficients at frequency `m + 2`. For `m < 0`, the operator is mapped to
@@ -353,15 +357,15 @@ coefficients at frequency `m + 2`. For `m < 0`, the operator is mapped to
 # Returns
 - `res`
 """
-function ∂ζ̄∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+function ∂²Ĝᵐ∂ζ̄²!(res, μ̂ₘ, lmax, m)
     fill!(res, 0)
 
     base_len = size_current_m(lmax, m + 2)
-    _check_inplace_length("∂ζ̄∂ζ̄Δ⁻¹_m_sparse!", res, base_len)
+    _check_inplace_length("∂²Ĝᵐ∂ζ̄²!", res, base_len)
 
     if m < 0
         tmp = similar(res)
-        ∂ζ∂ζΔ⁻¹_m_sparse!(tmp, conj.(μ̂ₘ), lmax, -m)
+        ∂²Ĝᵐ∂ζ²!(tmp, conj.(μ̂ₘ), lmax, -m)
         res .= conj.(tmp)
         return res
     end
@@ -384,9 +388,9 @@ function ∂ζ̄∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
 end
 
 """
-    ∂ζ∂ζΔ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+    ∂²Ĝᵐ∂ζ²!(res, μ̂ₘ, lmax, m)
 
-Apply ∂ζ²Δ⁻¹ to the frequency-`m` sparse coefficients in-place.
+Apply (∂/∂ζ)² 𝒮𝒩⁻¹ to the frequency-`m` sparse coefficients in-place.
 
 Two applications of ∂ζ decrement the azimuthal frequency by 2, so the output represents
 coefficients at frequency `m - 2`. For `m < 0`, the operator is mapped to
@@ -401,19 +405,19 @@ coefficients at frequency `m - 2`. For `m < 0`, the operator is mapped to
 # Returns
 - `res`
 """
-function ∂ζ∂ζΔ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+function ∂²Ĝᵐ∂ζ²!(res, μ̂ₘ, lmax, m)
     fill!(res, 0)
 
     if m < 0
         tmp = similar(res)
-        ∂ζ̄∂ζ̄Δ⁻¹_m_sparse!(tmp, conj.(μ̂ₘ), lmax, -m)
+        ∂²Ĝᵐ∂ζ̄²!(tmp, conj.(μ̂ₘ), lmax, -m)
         res .= conj.(tmp)
         return res
     end
 
     target_m = m - 2
     base_len = size_current_m(lmax, target_m)
-    _check_inplace_length("∂ζ∂ζΔ⁻¹_m_sparse!", res, base_len)
+    _check_inplace_length("∂²Ĝᵐ∂ζ²!", res, base_len)
 
     if m == 0
         for l in 2:2:lmax
@@ -455,12 +459,12 @@ function ∂ζ∂ζΔ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
 end
 
 """
-    ∂ζ∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+    ∂²Ĝᵐ∂ζ∂ζ̄!(res, μ̂ₘ, lmax, m)
 
-Apply ∂ζ∂ζ̄Δ⁻¹ to the frequency-`m` sparse coefficients in-place.
+Apply (∂²/∂ζ∂ζ̄) 𝒮𝒩⁻¹ to the frequency-`m` sparse coefficients in-place.
 
 The mixed partial ∂ζ∂ζ̄ preserves the azimuthal frequency, so the output is at the same
-frequency `m`. Due to the identity ∂ζ∂ζ̄Δ⁻¹ = 1/4 on the relevant function space, this
+frequency `m`. Due to the identity ∂ζ∂ζ̄𝒮𝒩⁻¹ = 1/4 on the relevant function space, this
 simply scales the input by 1/4.
 
 # Arguments
@@ -472,16 +476,16 @@ simply scales the input by 1/4.
 # Returns
 - `res`
 """
-function ∂ζ∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+function ∂²Ĝᵐ∂ζ∂ζ̄!(res, μ̂ₘ, lmax, m)
     fill!(res, 0)
     base_len = size_current_m(lmax, m)
-    _check_inplace_length("∂ζ∂ζ̄Δ⁻¹_m_sparse!", res, base_len)
+    _check_inplace_length("∂²Ĝᵐ∂ζ∂ζ̄!", res, base_len)
     res[1:length(μ̂ₘ)] .= μ̂ₘ ./ 4
     return res
 end
 
 """
-    r_dot_∇Δ⁻¹!(res, f̂ᵐ, lmax, m)
+    r_∂Ĝᵐ∂r!(res, f̂ᵐ, lmax, m)
 
 Apply r·∇Δ⁻¹ to the frequency-`m` sparse coefficients in-place.
 
@@ -497,10 +501,10 @@ output is at frequency `m`.
 # Returns
 - `res`
 """
-function r_dot_∇Δ⁻¹!(res, f̂ᵐ, lmax, m)
+function r_∂Ĝᵐ∂r!(res, f̂ᵐ, lmax, m)
     tmp = similar(res)
-    ζ∂ζΔ⁻¹_m_sparse!(res, f̂ᵐ, lmax, m)
-    ζ̄∂ζ̄Δ⁻¹_m_sparse!(tmp, f̂ᵐ, lmax, m)
+    ζ_∂Ĝᵐ∂ζ!(res, f̂ᵐ, lmax, m)
+    ζ̄_∂Ĝᵐ∂ζ̄!(tmp, f̂ᵐ, lmax, m)
     res .+= tmp
     return res
 end
@@ -508,105 +512,107 @@ end
 # Out-of-place wrappers.
 
 """
-    Inverse_laplacian_coef_m_sparse(f̂ᵐ, lmax, m; aliasing=true)
+    Ĝᵐ(f̂ᵐ, lmax, m; aliasing=true)
 
-Out-of-place version of [`Inverse_laplacian_coef_m_sparse!`](@ref). Allocates the result
+Out-of-place version of [`Ĝᵐ!`](@ref). Allocates the result
 vector and delegates to the in-place implementation.
 """
-function Inverse_laplacian_coef_m_sparse(f̂ᵐ, lmax, m; aliasing=true)
+function Ĝᵐ(f̂ᵐ, lmax, m; aliasing=true)
     res = zeros(ComplexF64, length(f̂ᵐ) + aliasing)
-    return Inverse_laplacian_coef_m_sparse!(res, f̂ᵐ, lmax, m)
+    return Ĝᵐ!(res, f̂ᵐ, lmax, m)
 end
 
 """
-    ∂ζΔ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+    ∂Ĝᵐ∂ζ(μ̂ₘ, lmax, m; aliasing=true)
 
-Out-of-place version of [`∂ζΔ⁻¹_m_sparse!`](@ref). Allocates the result vector and
+Out-of-place version of [`∂Ĝᵐ∂ζ!`](@ref). Allocates the result vector and
 delegates to the in-place implementation.
 """
-function ∂ζΔ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+function ∂Ĝᵐ∂ζ(μ̂ₘ, lmax, m; aliasing=true)
     n = ∂ζ_indexing_sparse(lmax, m; aliasing = aliasing)
     res = zeros(ComplexF64, n)
-    return ∂ζΔ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+    return ∂Ĝᵐ∂ζ!(res, μ̂ₘ, lmax, m)
 end
 
 """
-    ∂ζ̄Δ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+    ∂Ĝᵐ∂ζ̄(μ̂ₘ, lmax, m; aliasing=true)
 
-Out-of-place version of [`∂ζ̄Δ⁻¹_m_sparse!`](@ref). Allocates the result vector and
+Out-of-place version of [`∂Ĝᵐ∂ζ̄!`](@ref). Allocates the result vector and
 delegates to the in-place implementation.
 """
-function ∂ζ̄Δ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+function ∂Ĝᵐ∂ζ̄(μ̂ₘ, lmax, m; aliasing=true)
     n = ∂ζ̄_indexing_sparse(lmax, m; aliasing = aliasing)
     res = zeros(ComplexF64, n)
-    return ∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+    return ∂Ĝᵐ∂ζ̄!(res, μ̂ₘ, lmax, m)
 end
 
 """
-    ζ∂ζΔ⁻¹_m_sparse(f̂ᵐ, lmax, m; aliasing=true)
+    ζ_∂Ĝᵐ∂ζ(f̂ᵐ, lmax, m; aliasing=true)
 
-Out-of-place version of [`ζ∂ζΔ⁻¹_m_sparse!`](@ref). Allocates the result vector and
+Out-of-place version of [`ζ_∂Ĝᵐ∂ζ!`](@ref). Allocates the result vector and
 delegates to the in-place implementation.
 """
-function ζ∂ζΔ⁻¹_m_sparse(f̂ᵐ, lmax, m; aliasing=true)
+function ζ_∂Ĝᵐ∂ζ(f̂ᵐ, lmax, m; aliasing=true)
     res = zeros(ComplexF64, length(f̂ᵐ) + aliasing)
-    return ζ∂ζΔ⁻¹_m_sparse!(res, f̂ᵐ, lmax, m)
+    return ζ_∂Ĝᵐ∂ζ!(res, f̂ᵐ, lmax, m)
 end
 
 """
-    ζ̄∂ζ̄Δ⁻¹_m_sparse(f̂ᵐ, lmax, m; aliasing=true)
+    ζ̄_∂Ĝᵐ∂ζ̄(f̂ᵐ, lmax, m; aliasing=true)
 
-Out-of-place version of [`ζ̄∂ζ̄Δ⁻¹_m_sparse!`](@ref). Allocates the result vector and
+Out-of-place version of [`ζ̄_∂Ĝᵐ∂ζ̄!`](@ref). Allocates the result vector and
 delegates to the in-place implementation.
 """
-function ζ̄∂ζ̄Δ⁻¹_m_sparse(f̂ᵐ, lmax, m; aliasing=true)
+function ζ̄_∂Ĝᵐ∂ζ̄(f̂ᵐ, lmax, m; aliasing=true)
     res = zeros(ComplexF64, length(f̂ᵐ) + aliasing)
-    return ζ̄∂ζ̄Δ⁻¹_m_sparse!(res, f̂ᵐ, lmax, m)
+    return ζ̄_∂Ĝᵐ∂ζ̄!(res, f̂ᵐ, lmax, m)
 end
 
 """
-    ∂ζ̄∂ζ̄Δ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+    ∂²Ĝᵐ∂ζ̄²(μ̂ₘ, lmax, m; aliasing=true)
 
-Out-of-place version of [`∂ζ̄∂ζ̄Δ⁻¹_m_sparse!`](@ref). Allocates the result vector and
+Out-of-place version of [`∂²Ĝᵐ∂ζ̄²!`](@ref). Allocates the result vector and
 delegates to the in-place implementation.
 """
-function ∂ζ̄∂ζ̄Δ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+function ∂²Ĝᵐ∂ζ̄²(μ̂ₘ, lmax, m; aliasing=true)
     n = size_current_m(lmax, m + 2; aliasing = aliasing)
     res = zeros(ComplexF64, n)
-    return ∂ζ̄∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+    return ∂²Ĝᵐ∂ζ̄²!(res, μ̂ₘ, lmax, m)
 end
 
 """
-    ∂ζ∂ζΔ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+    ∂²Ĝᵐ∂ζ²(μ̂ₘ, lmax, m; aliasing=true)
 
-Out-of-place version of [`∂ζ∂ζΔ⁻¹_m_sparse!`](@ref). Allocates the result vector and
+Out-of-place version of [`∂²Ĝᵐ∂ζ²!`](@ref). Allocates the result vector and
 delegates to the in-place implementation.
 """
-function ∂ζ∂ζΔ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+function ∂²Ĝᵐ∂ζ²(μ̂ₘ, lmax, m; aliasing=true)
     n = ∂ζ∂ζ_indexing_sparse(lmax, m; aliasing = aliasing)
     res = zeros(ComplexF64, n)
-    return ∂ζ∂ζΔ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+    return ∂²Ĝᵐ∂ζ²!(res, μ̂ₘ, lmax, m)
 end
 
 """
-    ∂ζ∂ζ̄Δ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+    ∂²Ĝᵐ∂ζ∂ζ̄(μ̂ₘ, lmax, m; aliasing=true)
 
-Out-of-place version of [`∂ζ∂ζ̄Δ⁻¹_m_sparse!`](@ref). Allocates the result vector and
+Out-of-place version of [`∂²Ĝᵐ∂ζ∂ζ̄!`](@ref). Allocates the result vector and
 delegates to the in-place implementation.
 """
-function ∂ζ∂ζ̄Δ⁻¹_m_sparse(μ̂ₘ, lmax, m; aliasing=true)
+function ∂²Ĝᵐ∂ζ∂ζ̄(μ̂ₘ, lmax, m; aliasing=true)
     n = size_current_m(lmax, m; aliasing = aliasing)
     res = zeros(ComplexF64, n)
-    return ∂ζ∂ζ̄Δ⁻¹_m_sparse!(res, μ̂ₘ, lmax, m)
+    return ∂²Ĝᵐ∂ζ∂ζ̄!(res, μ̂ₘ, lmax, m)
 end
 
 """
-    r_dot_∇Δ⁻¹(f̂ᵐ, lmax, m; aliasing=true)
+    r_∂Ĝᵐ∂r(f̂ᵐ, lmax, m; aliasing=true)
 
-Out-of-place version of [`r_dot_∇Δ⁻¹!`](@ref). Allocates the result vector and
+Out-of-place version of [`r_∂Ĝᵐ∂r!`](@ref). Allocates the result vector and
 delegates to the in-place implementation.
 """
-function r_dot_∇Δ⁻¹(f̂ᵐ, lmax, m; aliasing=true)
+function r_∂Ĝᵐ∂r(f̂ᵐ, lmax, m; aliasing=true)
     res = zeros(ComplexF64, length(f̂ᵐ) + aliasing)
-    return r_dot_∇Δ⁻¹!(res, f̂ᵐ, lmax, m)
+    return r_∂Ĝᵐ∂r!(res, f̂ᵐ, lmax, m)
 end
+
+

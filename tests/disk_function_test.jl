@@ -18,8 +18,8 @@ end
         @test df._coeffs[5] isa TriangularCoeffArray
         @test ncolumns(df._coeffs[1]) == length(D.Mspan)
         for (i, m) in enumerate(Array(D.Mspan))
-            @test length(column(df._coeffs[1], m)) == size_current_m(lmax, m)
-            @test length(column(df._coeffs[5], m)) == size_current_m(lmax, m)
+            @test length(mode_coefficients(df._coeffs[1], m)) == size_current_m(lmax, m)
+            @test length(mode_coefficients(df._coeffs[5], m)) == size_current_m(lmax, m)
         end
 
         # 2. û physically solves Δu = f
@@ -33,14 +33,14 @@ end
         f̂ = psh(f, D)
         for (i, m) in enumerate(Array(D.Mspan))
             f̂_sparse_m = Vector{ComplexF64}(f̂[D.even[:,i], i])
-            @test norm(4 .* column(df._coeffs[5], m) .- f̂_sparse_m) < 1e-14
+            @test norm(4 .* mode_coefficients(df._coeffs[5], m) .- f̂_sparse_m) < 1e-14
         end
 
         # 4. Per-frequency consistency with direct operator call
         for (i, m) in enumerate(Array(D.Mspan))
             f̂_sparse_m = Vector{ComplexF64}(f̂[D.even[:,i], i])
-            expected    = Inverse_laplacian_coef_m_sparse(f̂_sparse_m, lmax, m; aliasing=false)
-            @test norm(column(df._coeffs[1], m) - expected) < 1e-14
+            expected    = Ĝᵐ(f̂_sparse_m, lmax, m; aliasing=false)
+            @test norm(mode_coefficients(df._coeffs[1], m) - expected) < 1e-14
         end
     end
 end
@@ -53,7 +53,7 @@ end
         # Shape
         @test ncolumns(df._coeffs[1]) == length(D.Mspan)
         for (i, m) in enumerate(Array(D.Mspan))
-            @test length(column(df._coeffs[1], m)) == size_current_m(lmax, m)
+            @test length(mode_coefficients(df._coeffs[1], m)) == size_current_m(lmax, m)
         end
 
         # Physical accuracy
@@ -65,7 +65,7 @@ end
         f̂ = psh(f, D)
         for (i, m) in enumerate(Array(D.Mspan))
             f̂_sparse_m = Vector{ComplexF64}(f̂[D.even[:,i], i])
-            @test norm(4 .* column(df._coeffs[5], m) .- f̂_sparse_m) < 1e-14
+            @test norm(4 .* mode_coefficients(df._coeffs[5], m) .- f̂_sparse_m) < 1e-14
         end
     end
 end

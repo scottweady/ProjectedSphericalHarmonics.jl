@@ -21,18 +21,18 @@ using KrylovKit
 #
 # Since u_h depends linearly on μ via the BC, eliminating u_h yields:
 #
-#   [I + 2a ∂ζΔ⁻¹ + 2ā ∂ζ̄Δ⁻¹ - 2(a ∂ζ + ā ∂ζ̄)∘SolveHarmonic∘DirichletTrace∘Δ⁻¹] μ
+#   [I + 2a ∂ζΔ⁻¹ + 2ā ∂ζ̄Δ⁻¹ - 2(a ∂ζ + ā ∂ζ̄)∘SolveHarmonic∘trace∘Δ⁻¹] μ
 #       = f - 2(a ∂ζ + ā ∂ζ̄) SolveHarmonic(g)
 #
 # The GMRES unknown μ is a TriangularCoeffArray (PSH coefficient space), NOT a
 # nodal grid of size Nr × Nθ. The per-frequency operators are applied directly,
 # exploiting the frequency-shift rules:
-#   ∂ζΔ⁻¹_m_sparse  : input at freq m → output at freq m-1
-#   ∂ζ̄Δ⁻¹_m_sparse : input at freq m → output at freq m+1
+#   ∂Ĝᵐ∂ζ  : input at freq m → output at freq m-1
+#   ∂Ĝᵐ∂ζ̄ : input at freq m → output at freq m+1
 # To fill column m of the result:
-#   ∂ζΔ⁻¹ contribution: feed column(μ, m+1)  [shifts m+1 → m]
-#   ∂ζ̄Δ⁻¹ contribution: feed column(μ, m-1) [shifts m-1 → m]
-# The harmonic correction only populates column(result, m)[1] (l = |m| mode).
+#   ∂ζΔ⁻¹ contribution: feed mode_coefficients(μ, m+1)  [shifts m+1 → m]
+#   ∂ζ̄Δ⁻¹ contribution: feed mode_coefficients(μ, m-1) [shifts m-1 → m]
+# The harmonic correction only populates mode_coefficients(result, m)[1] (l = |m| mode).
 
 
 
@@ -44,7 +44,7 @@ using KrylovKit
 
 Apply the advection-diffusion operator in PSH coefficient space:
     Aμ = μ + 2a ∂ζΔ⁻¹μ + 2ā ∂ζ̄Δ⁻¹μ
-           - 2(a ∂ζ + ā ∂ζ̄) SolveHarmonic(DirichletTrace(Δ⁻¹μ))
+           - 2(a ∂ζ + ā ∂ζ̄) SolveHarmonic(trace(Δ⁻¹μ))
 
 A `DiskFunction` with derivative slots (1,0) and (0,1) is built from `μ_tri`,
 giving `∂ζΔ⁻¹μ` and `∂ζ̄Δ⁻¹μ` directly as `TriangularCoeffArray` objects.
@@ -70,7 +70,7 @@ function _apply_A_coeff(μ_tri::TriangularCoeffArray, a, D)
     trace_hat = zeros(ComplexF64, N_m)
 
     for (i, m) in enumerate(Mspan)
-        trace_hat[i] = DirichletTrace(column(df._coeffs[1], m), lmax, m)
+        trace_hat[i] = trace(mode_coefficients(df._coeffs[1], m), lmax, m)
     end
 
     û_h    = [trace_hat[i] / ylm(abs(Mspan[i]), Mspan[i], 1.0) for i in 1:N_m]
@@ -133,7 +133,7 @@ function SolveAdvectionDiffusion(f, g, a, D; tol=1e-10, itmax=500, krylovdim=not
     rhs_tri = copy(f_tri)
     
     for (i, m) in enumerate(Mspan)
-        column(rhs_tri, m)[1] -= 2*(a * dû_ζ[i] + conj(a) * dû_ζ̄[i])
+        mode_coefficients(rhs_tri, m)[1] -= 2*(a * dû_ζ[i] + conj(a) * dû_ζ̄[i])
     end
 
     _apply_A_coeff(rhs_tri, a, D)
@@ -156,7 +156,7 @@ function SolveAdvectionDiffusion(f, g, a, D; tol=1e-10, itmax=500, krylovdim=not
     trace_hat = zeros(ComplexF64, N_m)
 
     for (i, m) in enumerate(Mspan)
-        trace_hat[i] = DirichletTrace(column(df_final._coeffs[1], m), lmax, m)
+        trace_hat[i] = trace(mode_coefficients(df_final._coeffs[1], m), lmax, m)
     end
     bc_correction = real.(ifft(trace_hat) * N_m)
     h_final = HarmonicFunction(g .- bc_correction, D)

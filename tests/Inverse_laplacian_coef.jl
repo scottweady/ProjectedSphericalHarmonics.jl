@@ -314,7 +314,7 @@ norm(u_inv - u_inv_alt) < 1e-12
 ûᵐ_sparse = zeros(ComplexF64, ceil(Int, length(ûᵐ)/2))
 ûᵐ[1:2:end]
 ûᵐ_sparse .= ûᵐ[1:2:end]
-Δ⁻¹ûᵐ_sparse = Inverse_laplacian_coef_m_sparse(ûᵐ_sparse, Mr, m)
+Δ⁻¹ûᵐ_sparse = Ĝᵐ(ûᵐ_sparse, Mr, m)
 psh_coeffs_inv_sparse = zeros(ComplexF64, size(psh_coeffs))
 if m >= 0
     psh_coeffs_inv_sparse[m+1:2:end, m+1] .= Δ⁻¹ûᵐ_sparse[1:end-1]
@@ -354,25 +354,25 @@ norm(ipsh(Δ⁻¹û, D) - u_inv_alt) < 1e-12
 
 
 #Testing the sparse matrix construction
-Am = GenerateSparseMatrix_InverseLaplacian(Mr, m)
+Am = inverse_laplacian_matrix_sparse(Mr, m)
 
 ûᵐ_sparse = zeros(ComplexF64, ceil(Int, length(ûᵐ)/2))
 ûᵐ_sparse .= ûᵐ[1:2:end]
 # ûᵐ_sparse[2] = 1.0
 
-Δ⁻¹ûᵐ_sparse = Inverse_laplacian_coef_m_sparse(ûᵐ_sparse, Mr, m; aliasing = false)
+Δ⁻¹ûᵐ_sparse = Ĝᵐ(ûᵐ_sparse, Mr, m; aliasing = false)
 Δ⁻¹ûᵐ_matrix = Am * ûᵐ_sparse
 
 norm(Δ⁻¹ûᵐ_sparse - Δ⁻¹ûᵐ_matrix)
 
 #Testing rectangular matrix construction
-Am = GenerateSparseMatrix_InverseLaplacian(Mr, m; rectangular = true)
+Am = inverse_laplacian_matrix_sparse(Mr, m; rectangular = true)
 
 ûᵐ_sparse = zeros(ComplexF64, ceil(Int, length(ûᵐ)/2))
 # ûᵐ_sparse .= ûᵐ[1:2:end]
 ûᵐ_sparse[end] = 1.0
 
-Δ⁻¹ûᵐ_sparse = Inverse_laplacian_coef_m_sparse(ûᵐ_sparse, Mr, m; aliasing = true)
+Δ⁻¹ûᵐ_sparse = Ĝᵐ(ûᵐ_sparse, Mr, m; aliasing = true)
 Δ⁻¹ûᵐ_matrix = Am * ûᵐ_sparse
 
 norm(Δ⁻¹ûᵐ_sparse - Δ⁻¹ûᵐ_matrix)
@@ -387,8 +387,8 @@ m = 0
 
 a00 = 2.40482555769577
 a04 =11.7915344390142816137430449
-Big_System00 = ModifiedPoissonSystemMatrix(Mr, m, a00^2)
-Big_System04 = ModifiedPoissonSystemMatrix(Mr, m, a04^2)
+Big_System00 = helmholtz_matrix(Mr, m, a00^2)
+Big_System04 = helmholtz_matrix(Mr, m, a04^2)
 U, Σ0, Vᵗ = svd(Big_System00);
 U, Σ4, Vᵗ = svd(Big_System04);
 
@@ -419,7 +419,7 @@ l, m = 7, 3
 partial_ζΔ⁻¹μ_bruteforce = ∂ζ(Δ⁻¹μ, D)
 psh_partial_ζΔ⁻¹μ_bruteforce = psh(partial_ζΔ⁻¹μ_bruteforce, D)
 
-partial_ζΔ⁻¹μ_sparse = ∂ζΔ⁻¹_m_sparse(μ̂[m+1:2:end, m+1], m, Mr; aliasing = false)
+partial_ζΔ⁻¹μ_sparse = ∂Ĝᵐ∂ζ(μ̂[m+1:2:end, m+1], m, Mr; aliasing = false)
 
 norm(partial_ζΔ⁻¹μ_sparse - psh_partial_ζΔ⁻¹μ_bruteforce[m:2:end, m]) < 10^(-10)
 
@@ -430,7 +430,7 @@ norm(partial_ζΔ⁻¹μ_sparse - psh_partial_ζΔ⁻¹μ_bruteforce[m:2:end, m]
 partial_ζ̄Δ⁻¹μ_bruteforce = ∂ζ̄(Δ⁻¹μ, D)
 psh_partial_ζ̄Δ⁻¹μ_bruteforce = psh(partial_ζ̄Δ⁻¹μ_bruteforce, D)
 
-partial_ζ̄Δ⁻¹μ_sparse = ∂ζ̄Δ⁻¹_m_sparse(μ̂[m+1:2:end, m+1], m, Mr; aliasing = false)
+partial_ζ̄Δ⁻¹μ_sparse = ∂Ĝᵐ∂ζ̄(μ̂[m+1:2:end, m+1], m, Mr; aliasing = false)
 
 norm(partial_ζ̄Δ⁻¹μ_sparse -psh_partial_ζ̄Δ⁻¹μ_bruteforce[m:2:end, m+2]) < 10^(-10) 
 
@@ -448,7 +448,7 @@ l, m = 4, 2
 # μ = ylm.(abs(m), m, ζ)
 μ̂ᵐ = μ̂[m+1:2:end, m+1]
 
-res1 = ζ∂ζΔ⁻¹_m_sparse( μ̂ᵐ , m, Mr; aliasing = false)
+res1 = ζ_∂Ĝᵐ∂ζ( μ̂ᵐ , m, Mr; aliasing = false)
 
 test_function1 = ζ.*∂ζ(Δ⁻¹μ, D)
 brute_force_res1 = psh(test_function1, D)[m+1:2:end, m+1]
@@ -458,7 +458,7 @@ norm(brute_force_res1 - res1) < 10^(-10)
 test_function2 = conj.(ζ).*∂ζ̄(Δ⁻¹μ, D)
 brute_force_res2 = psh(test_function2, D)[m+1:2:end, m+1]
 
-res2 = ζ̄∂ζ̄Δ⁻¹_m_sparse( μ̂ᵐ , m, Mr; aliasing = false)
+res2 = ζ̄_∂Ĝᵐ∂ζ̄( μ̂ᵐ , m, Mr; aliasing = false)
 
 norm(res2 - brute_force_res2)
  

@@ -25,23 +25,26 @@ include("solvers.jl")
 export Δ⁻¹, solve
 
 include("EllipticSolverCoefficientOperator/CoefficientSpaceOperators.jl")
-export Inverse_laplacian_coef_m, Inverse_laplacian_coef_m_sparse, Inverse_laplacian, DirichletTraceInverseLaplacian_m, DirichletTraceColumnLaplacian_m, ModifiedPoissonSystemMatrix, NeumannTraceΔ⁻¹_sparse
-export GenerateSparseMatrix_InverseLaplacian, GenerateSparseMatrix_r_dot_∇Δ⁻¹, GenerateSparseMatrix_ζ∂ζΔ⁻¹
-export ∂ζΔ⁻¹_m_sparse, ∂ζ̄Δ⁻¹_m_sparse
-export ζ∂ζΔ⁻¹_m_sparse, ζ̄∂ζ̄Δ⁻¹_m_sparse
+export Inverse_laplacian_coef_m, Inverse_laplacian
+export traceĜ, traceĜ_column, helmholtz_matrix, neumann_traceĜ
+export inverse_laplacian_matrix_sparse, r_dot_∇Δ⁻¹_matrix_sparse, ζ∂ζΔ⁻¹_matrix_sparse
 export ∂ζΔ⁻¹, ∂ζ̄Δ⁻¹, r_dot_∇Δ⁻¹
-export ∂ζ∂ζΔ⁻¹_m_sparse, ∂ζ∂ζ̄Δ⁻¹_m_sparse, ∂ζ̄∂ζ̄Δ⁻¹_m_sparse
-export Inverse_laplacian_coef_m_sparse!, ∂ζΔ⁻¹_m_sparse!, ∂ζ̄Δ⁻¹_m_sparse!, ζ∂ζΔ⁻¹_m_sparse!, ζ̄∂ζ̄Δ⁻¹_m_sparse!
-export ∂ζ∂ζΔ⁻¹_m_sparse!, ∂ζ∂ζ̄Δ⁻¹_m_sparse!, ∂ζ̄∂ζ̄Δ⁻¹_m_sparse!, r_dot_∇Δ⁻¹!
+export Ĝᵐ, ∂Ĝᵐ∂ζ, ∂Ĝᵐ∂ζ̄, ζ_∂Ĝᵐ∂ζ, ζ̄_∂Ĝᵐ∂ζ̄
+export ∂²Ĝᵐ∂ζ², ∂²Ĝᵐ∂ζ∂ζ̄, ∂²Ĝᵐ∂ζ̄², r_∂Ĝᵐ∂r
+export Ĝᵐ!, ∂Ĝᵐ∂ζ!, ∂Ĝᵐ∂ζ̄!, ζ_∂Ĝᵐ∂ζ!, ζ̄_∂Ĝᵐ∂ζ̄!
+export ∂²Ĝᵐ∂ζ²!, ∂²Ĝᵐ∂ζ∂ζ̄!, ∂²Ĝᵐ∂ζ̄²!, r_∂Ĝᵐ∂r!
 export size_current_m, ∂ζ_indexing_sparse, ∂ζ̄_indexing_sparse, ∂ζ∂ζ_indexing_sparse, ∂ζ̄∂ζ̄_indexing_sparse
-export DirichletTrace
 
 
 include("AbstractDiskFunction.jl")
 export AbstractDiskFunction
 
-include("TriangularCoeffArray.jl")
-export TriangularCoeffArray, column, ncolumns, NodalToTriangularArray, TriangularArrayToPSH
+include("TriangularCoeffArray/TriangularCoeffArray.jl")
+export TriangularCoeffArray, mode_coefficients, ncolumns, NodalToTriangularArray, TriangularArrayToPSH
+export parity, ordering, circshift_fft_to_natural, circshift_natural_to_fft
+
+include("TransformsForTriangles/transforms.jl")
+export psh!, ipsh!, psh_triangular
 
 include("HarmonicSolver/CoefficientSpaceHarmonic.jl")
 export HarmonicFunction, SolveHarmonicFunction_coefficient, EvaluateHarmonicFunction
