@@ -24,7 +24,7 @@ export trace
 include("solvers.jl")
 export Δ⁻¹, solve
 
-include("EllipticSolverCoefficientOperator/CoefficientSpaceOperators.jl")
+include("EllipticOperators/CoefficientSpaceOperators.jl")
 export Inverse_laplacian_coef_m, Inverse_laplacian
 export traceĜ, traceĜ_column, helmholtz_matrix, neumann_traceĜ
 export inverse_laplacian_matrix_sparse, r_dot_∇Δ⁻¹_matrix_sparse, ζ∂ζΔ⁻¹_matrix_sparse
@@ -34,23 +34,29 @@ export ∂²Ĝᵐ∂ζ², ∂²Ĝᵐ∂ζ∂ζ̄, ∂²Ĝᵐ∂ζ̄², r_∂G
 export Ĝᵐ!, ∂Ĝᵐ∂ζ!, ∂Ĝᵐ∂ζ̄!, ζ_∂Ĝᵐ∂ζ!, ζ̄_∂Ĝᵐ∂ζ̄!
 export ∂²Ĝᵐ∂ζ²!, ∂²Ĝᵐ∂ζ∂ζ̄!, ∂²Ĝᵐ∂ζ̄²!, r_∂Ĝᵐ∂r!
 export size_current_m, ∂ζ_indexing_sparse, ∂ζ̄_indexing_sparse, ∂ζ∂ζ_indexing_sparse, ∂ζ̄∂ζ̄_indexing_sparse
+export Ĝ, ∂Ĝ∂ζ, ∂Ĝ∂ζ̄, ζ_∂Ĝ∂ζ, ζ̄_∂Ĝ∂ζ̄
+export ∂²Ĝ∂ζ², ∂²Ĝ∂ζ∂ζ̄, ∂²Ĝ∂ζ̄², r_∂Ĝ∂r
+export Ĝ!, ∂Ĝ∂ζ!, ∂Ĝ∂ζ̄!, ζ_∂Ĝ∂ζ!, ζ̄_∂Ĝ∂ζ̄!
+export ∂²Ĝ∂ζ²!, ∂²Ĝ∂ζ∂ζ̄!, ∂²Ĝ∂ζ̄²!, r_∂Ĝ∂r!
 
 
-include("AbstractDiskFunction.jl")
+include("DiskFunction/AbstractDiskFunction.jl")
 export AbstractDiskFunction
 
 include("TriangularCoeffArray/TriangularCoeffArray.jl")
 export TriangularCoeffArray, mode_coefficients, ncolumns, NodalToTriangularArray, TriangularArrayToPSH
-export parity, ordering, circshift_fft_to_natural, circshift_natural_to_fft
+export parity, ordering, lmax, circshift_fft_to_natural, circshift_natural_to_fft
+
+include("EllipticOperators/FhatOperatorsTriangularArrays/apply_triangular.jl")
 
 include("TransformsForTriangles/transforms.jl")
 export psh!, ipsh!, psh_triangular
 
-include("HarmonicSolver/CoefficientSpaceHarmonic.jl")
+include("DiskFunction/HarmonicFunctions.jl")
 export HarmonicFunction, SolveHarmonicFunction_coefficient, EvaluateHarmonicFunction
 export ∂ζ_HarmonicFunction!, ∂ζ̄_HarmonicFunction!
 
-include("DiskFunction.jl")
+include("DiskFunction/DiskFunction.jl")
 export DiskFunction, DiskFunction!, add!, sub!, evaluate
 
 end

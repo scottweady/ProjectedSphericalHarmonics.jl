@@ -1,7 +1,22 @@
 using Test
 
 @testset "ProjectedSphericalHarmonics.jl" begin
-    include("coefficient_space_operators_test.jl")
-    include("coefficient_space_operators_inplace_test.jl")
-    include("disk_function_test.jl")
+
+    @testset "EllipticOperators" begin
+        include("EllipticOperators/per_frequency_operators.jl")
+        include("EllipticOperators/full_fhat_operators.jl")
+        include("EllipticOperators/full_fhat_operators_triangular.jl")
+        include("EllipticOperators/boundary_operators.jl")
+    end
+
+    @testset "Functions" begin
+        include("Functions/disk_function_test.jl")
+        include("Functions/derivatives_test.jl")
+        include("Functions/harmonic_function_test.jl")
+    end
+
+    @testset "TriangularArrays" begin
+        include("TriangularArrays/runtests.jl")
+    end
+
 end

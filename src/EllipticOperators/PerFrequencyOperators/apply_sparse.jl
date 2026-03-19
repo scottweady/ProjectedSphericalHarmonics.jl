@@ -194,7 +194,7 @@ function ∂Ĝᵐ∂ζ̄!(res, μ̂ₘ, lmax, m; aliasing = false)
             break
         end
         res[i-1] += -1 / (l - m - 1) * 1 / 2 / (2l + 1) * Nlm(l, m, l - 1, m + 1) * μ̂ₘ[i]
-        if i <= length(res)
+        if i <= length(res) && ((l < lmax) || aliased_output)
             res[i] += -1 / 2 * 1 / (2l + 1) / (l + m + 2) * Nlm(l, m, l + 1, m + 1) * μ̂ₘ[i]
         end
     end
@@ -236,12 +236,10 @@ function ζ_∂Ĝᵐ∂ζ!(res, f̂ᵐ, lmax, m)
         return res
     end
 
-    move_index = false
-
     res[1] = 1 / (2 * (2m + 1) * (2m + 3)) * f̂ᵐ[1]
     if length(res) >= 2
         coeff = -(1 / (2 * (2m + 1) * (2m + 3))) * Nlm(m, m, m + 2, m)
-        res[2- move_index] = coeff * f̂ᵐ[1]
+        res[2] = coeff * f̂ᵐ[1]
     end
 
     for l in m+2:2:lmax
@@ -251,13 +249,13 @@ function ζ_∂Ĝᵐ∂ζ!(res, f̂ᵐ, lmax, m)
         end
         diag_coeff = (((l - m + 1) / (2l + 3)) - ((l + m) / (2l - 1))) / (2 * (2l + 1))
         sub_coeff = ((l + m) / (2 * (2l + 1) * (2l - 1))) * Nlm(l, m, l - 2, m)
-        res[i- move_index] += diag_coeff * f̂ᵐ[i]
+        res[i] += diag_coeff * f̂ᵐ[i]
         if i - 1 >= 1
-            res[i - 1 - move_index] += sub_coeff * f̂ᵐ[i]
+            res[i - 1] += sub_coeff * f̂ᵐ[i]
         end
         if i + 1 <= length(res) && ((l < lmax && l + 1 < lmax) || aliased_output)
             super_coeff = -((l - m + 1) / (2 * (2l + 1) * (2l + 3))) * Nlm(l, m, l + 2, m)
-            res[i + 1 - move_index] += super_coeff * f̂ᵐ[i]
+            res[i + 1] += super_coeff * f̂ᵐ[i]
         end
     end
 
@@ -298,7 +296,6 @@ function ζ̄_∂Ĝᵐ∂ζ̄!(res, f̂ᵐ, lmax, m)
         return res
     end
 
-    move_index = (m==0)
 
     res[1] = 1 / (2 * (2m + 3)) * f̂ᵐ[1]
     if length(res) >= 2

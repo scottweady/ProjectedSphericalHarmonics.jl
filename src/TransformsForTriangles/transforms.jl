@@ -113,8 +113,7 @@ function ipsh!(u::AbstractMatrix, û::TriangularCoeffArray{T,N,P,O}, D) where {T
     end
 
     ifft!(u, 2)
-    # u .= u.* D.shp[2]
-    # u .= ifft(u, 2) .* D.shp[2]
+    u .*= D.shp[2]
     return u
 end
 

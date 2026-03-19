@@ -89,3 +89,22 @@ end
 Return the number of frequency columns in `A`.
 """
 @inline ncolumns(A::TriangularCoeffArray) = length(A.Mspan)
+
+"""
+    _lmax(A)
+
+Recover the maximum spherical harmonic degree stored in `A`.
+
+Uses the `m = 0` column (always the longest) and inverts the mode-count formula:
+`lmax = shift_p + 2 * (n - 1)` where `n = length(mode_coefficients(A, 0))`
+and `shift_p` is 0 for `:even` parity, 1 for `:odd`.
+"""
+@inline function _lmax(A::TriangularCoeffArray)
+    shift_p = parity(A) == :even ? 0 : 1
+    return shift_p + 2 * (length(mode_coefficients(A, 0)) - 1)
+end
+
+function Base.getproperty(A::TriangularCoeffArray, s::Symbol)
+    s === :lmax && return _lmax(A)
+    return getfield(A, s)
+end

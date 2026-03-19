@@ -2,11 +2,10 @@ export size_current_m, ∂ζ_indexing_sparse, ∂ζ̄_indexing_sparse
 
 
 
-function size_current_m(lmax, m; aliasing = false)
+@inline function size_current_m(lmax, m; aliasing = false)
 
     #This function is only valid for even expansions
-    
-    return n = floor(Int, (lmax + 2 - abs(m)) / 2) + aliasing
+    return floor(Int, (lmax + 2 - abs(m)) / 2) + aliasing
 
 end
 

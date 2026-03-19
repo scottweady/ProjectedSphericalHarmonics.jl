@@ -35,7 +35,7 @@ f =  k^2*exp.(-abs2.(D.ζ .- (0.4 + 0.3*im)))
 g = y_boundary .* cos.(n * x_boundary)
 
 # Transform right-hand side into TriangularCoeffArray
-f̂_tri = NodalToTriangularArray(f, D)
+f̂_tri = psh_triangular(f, D)
 ĝ = fft(g) / length(g)
 
 Mspan = vec(Array(D.Mspan))
@@ -47,12 +47,21 @@ b̂ = [[ ĝ[i] ; mode_coefficients(f̂_tri, Mspan[i]) ] for i in eachindex(Mspan
 # Solve per frequency
 Solution_vector = [Problem_matrices[i] \ b̂[i] for i in eachindex(Mspan)];
 
+μ̂_tri = TriangularCoeffArray{Float64}(lmax, Mspan)
+
+for (i,m) in enumerate(Mspan)
+
+    mode_coefficients(μ̂_tri, m) .= Solution_vector[i][2:end]
+
+end
+
 # Reconstruct û: apply Δ⁻¹ to the interior part, then add boundary contribution
 û_tri = TriangularCoeffArray{Float64}(lmax, Mspan)
+Ĝ!(û_tri, μ̂_tri)
+
 
 for (i, m) in enumerate(Mspan)
     res = mode_coefficients(û_tri, m)
-    Ĝᵐ!(res, Solution_vector[i][2:end], lmax, m)
     res[1] += Solution_vector[i][1]
 end
 
@@ -60,13 +69,14 @@ end
 
 
 
-# Convert TriangularCoeffArray back to full PSH matrix for ipsh
+# ipsh! on the quadrature grid; û_psh kept for off-grid interpolation below
+u = zeros(ComplexF64, size(D.ζ))
+ipsh!(u, û_tri, D)
+
 û_psh = TriangularArrayToPSH(û_tri, D)
 
-u = ipsh(û_psh, D)
 
-
-R_samples = collect(0.0:0.01:1.0)
+R_samples = collect(0.0:0.0005:1.0)
 index_r = findfirst(x -> x > 0.25, R_samples)
 Θ_samples = [D.θ..., 2π]
 
@@ -77,7 +87,7 @@ Y_samples = (R_samples' .* sin.(Θ_samples))'
 
 
 zs = real.(u_interp)
-levels = Makie.get_tickvalues(Makie.LinearTicks(20), extrema(zs[1:index_r,:])...)
+levels = Makie.get_tickvalues(Makie.LinearTicks(15), extrema(zs[1:index_r,:])...)
 
 
 
@@ -94,17 +104,5 @@ ctr = contour!(ax2, X_samples[1:index_r,:], Y_samples[1:index_r,:], max.(0.000, 
 ctr = contour!(ax2, X_samples[1:index_r,:], Y_samples[1:index_r,:], min.(0.000, zs[1:index_r,:]); color=:black, levels=levels, labels=false, linestyle=:dash)
 
 display(fig)
-maximum(abs.(u_interp))
-#20.732932219270985
-# fig, ax, srf = surface(X_samples, Y_samples, fill(0f0, size(zs)); color=zs, colorrange=extrema(zs), shading=NoShading, axis=(; type=Axis, aspect=DataAspect()), colormap=:coolwarm)
+# maximum(abs.(u_interp))
 
-
-
-
-# xlims!(ax, -0.2, 0.2)
-# ylims!(ax, -0.2, 0.2)
-
-# ctr = contour!(ax, X_samples[1:index_r,:], Y_samples[1:index_r,:], max.(0.000, zs[1:index_r,:]); color=:black, levels=levels, labels=false)
-# ctr = contour!(ax, X_samples[1:index_r,:], Y_samples[1:index_r,:], min.(0.000, zs[1:index_r,:]); color=:black, levels=levels, labels=false, linestyle=:dash)
-
-# fig
