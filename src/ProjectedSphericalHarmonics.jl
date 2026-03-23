@@ -52,11 +52,23 @@ include("EllipticOperators/FhatOperatorsTriangularArrays/apply_triangular.jl")
 include("TransformsForTriangles/transforms.jl")
 export psh!, ipsh!, psh_triangular
 
+include("HarmonicOperators/harmonic_operators.jl")
+export harmonic_coeff_from_dirichlet!, harmonic_coeff_from_dirichlet
+export dirichlet_trace_harmonic!, dirichlet_trace_harmonic
+export neumann_trace_harmonic!, neumann_trace_harmonic
+export ∂ζ_harmonic!, ∂ζ_harmonic
+export ∂ζ̄_harmonic!, ∂ζ̄_harmonic
+export ζ_∂ζ_harmonic!, ζ_∂ζ_harmonic
+export ζ̄_∂ζ̄_harmonic!, ζ̄_∂ζ̄_harmonic
+
 include("DiskFunction/HarmonicFunctions.jl")
 export HarmonicFunction, SolveHarmonicFunction_coefficient, EvaluateHarmonicFunction
 export ∂ζ_HarmonicFunction!, ∂ζ̄_HarmonicFunction!
 
 include("DiskFunction/DiskFunction.jl")
 export DiskFunction, DiskFunction!, add!, sub!, evaluate
+
+include("EllipticSolver/EllipticSolution.jl")
+export EllipticSolution
 
 end

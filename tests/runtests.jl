@@ -19,4 +19,8 @@ using Test
         include("TriangularArrays/runtests.jl")
     end
 
+    @testset "EllipticSolver" begin
+        include("EllipticSolver/elliptic_solution_test.jl")
+    end
+
 end

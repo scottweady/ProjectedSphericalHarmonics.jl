@@ -60,16 +60,8 @@ end
 
 function SolveHarmonicFunction_coefficient(g, D)
     ĝ = fft(g) / length(g)
-    û_harmonic = zeros(ComplexF64, size(ĝ))
-    for i in eachindex(Array(D.Mspan))
-        m = Array(D.Mspan)[i]
-        if m < 0
-            û_harmonic[end - (abs(m) - 1)] = ĝ[i] / ylm(abs(m), m, 1.0)
-        else
-            û_harmonic[i] = ĝ[i] / ylm(m, m, 1.0)
-        end
-    end
-    return û_harmonic
+    û_harmonic = zeros(ComplexF64, length(ĝ))
+    return harmonic_coeff_from_dirichlet!(û_harmonic, ĝ, vec(Array(D.Mspan)))
 end
 
 # ─── Evaluation ───────────────────────────────────────────────────────────────
@@ -139,33 +131,17 @@ Base.:/(h::HarmonicFunction, α::Number) = (1/α) * h
 
 # ─── Per-frequency derivative operators ──────────────────────────────────────
 
-function ∂ζ_HarmonicFunction!(dû_harmonic, û_harmonic, Mspan::Vector{Int})
-    fill!(dû_harmonic, 0)
-    for (i, m) in enumerate(Mspan)
-        m < 1 && continue
-        dû_harmonic[i-1] = m * û_harmonic[i] * ylm(abs(m), m, 1.0) / ylm(abs(m-1), m-1, 1.0)
-    end
-    return dû_harmonic
-end
+∂ζ_HarmonicFunction!(dû_harmonic, û_harmonic, Mspan::Vector{Int}) =
+    ∂ζ_harmonic!(dû_harmonic, û_harmonic, Mspan)
 
 ∂ζ_HarmonicFunction!(dû_harmonic, û_harmonic, D) =
-    ∂ζ_HarmonicFunction!(dû_harmonic, û_harmonic, vec(Array(D.Mspan)))
+    ∂ζ_harmonic!(dû_harmonic, û_harmonic, vec(Array(D.Mspan)))
 
-function ∂ζ̄_HarmonicFunction!(dû_harmonic, û_harmonic, Mspan::Vector{Int})
-    fill!(dû_harmonic, 0)
-    for (i, m) in enumerate(Mspan)
-        m > -1 && continue
-        if m == -1
-            dû_harmonic[1] = û_harmonic[i] * ylm(1, -1, 1.0) / ylm(0, 0, 1.0)
-        else
-            dû_harmonic[i+1] = abs(m) * û_harmonic[i] * ylm(abs(m), m, 1.0) / ylm(abs(m+1), m+1, 1.0)
-        end
-    end
-    return dû_harmonic
-end
+∂ζ̄_HarmonicFunction!(dû_harmonic, û_harmonic, Mspan::Vector{Int}) =
+    ∂ζ̄_harmonic!(dû_harmonic, û_harmonic, Mspan)
 
 ∂ζ̄_HarmonicFunction!(dû_harmonic, û_harmonic, D) =
-    ∂ζ̄_HarmonicFunction!(dû_harmonic, û_harmonic, vec(Array(D.Mspan)))
+    ∂ζ̄_harmonic!(dû_harmonic, û_harmonic, vec(Array(D.Mspan)))
 
 function ∂²ζ_HarmonicFunction!(dû_harmonic, û_harmonic, D)
     ∂ζ_HarmonicFunction!(dû_harmonic, û_harmonic, D)
