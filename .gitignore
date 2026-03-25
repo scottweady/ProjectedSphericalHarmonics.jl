@@ -1,6 +1,7 @@
 .DS_Store
+
+archive
 local
 examples/*/
-src/solvers/constructor.jl
 
 Manifest.toml

@@ -12,7 +12,7 @@ function print_error(label, value, tol1=1e-6, tol2=1e-8)
 end
 
 # Discretize disk
-Mr, Mθ = 256, 128
+Mr, Mθ = 128, 64
 D = disk(Mr, Mθ)
 
 # Get grid points and weight function
@@ -37,6 +37,18 @@ err = 𝒩(u, D) - (-u ./ w ./ λlm(l, m))
 print_error("  Max error in 𝒩 for (l,m) = ($l,$m): ", maximum(abs.(err)))
 err = 𝒩⁻¹(u ./ w, D) - (-λlm(l, m) * u)
 print_error("  Max error in 𝒩⁻¹ for (l,m) = ($l,$m): ", maximum(abs.(err)))
+
+# Stokes operator
+f₁ = -(4 / π) * y ./ w
+f₂ =  (4 / π) * x ./ w
+u₁, u₂ = 𝒢((f₁, f₂), D)
+print_error("  Max error in 𝒢 for f₁: ", maximum(abs.(u₁ - (-y))))
+print_error("  Max error in 𝒢 for f₂: ", maximum(abs.(u₂ - (x))))
+
+u₁, u₂ = (-y, x)
+f₁, f₂ = 𝒢⁻¹((u₁, u₂), D)
+print_error("  Max error in 𝒢⁻¹ for f₁: ", maximum(abs.(f₁ - (-(4 / π) * y ./ w))))
+print_error("  Max error in 𝒢⁻¹ for f₂: ", maximum(abs.(f₂ - ((4 / π) * x ./ w))))
 
 println("Testing differential operators...")
 

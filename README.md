@@ -42,7 +42,7 @@ Pkg.add(url="https://github.com/scottweady/ProjectedSphericalHarmonics.jl")
 The projected spherical harmonics are particularly useful when working with layer potentials of the 3D laplacian. The single layer potential $\mathcal{S}$ is defined as
 
 ```math
-\mathcal{S}[u](\mathbf{x}) = \int_D \frac{u(\mathbf{y})}{|\mathbf{x} - \mathbf{y}|} {\rm d}\mathbf{y}.
+\mathcal{S}[u](\mathbf{x}) = \frac{1}{4\pi}\int_D \frac{u(\mathbf{y})}{|\mathbf{x} - \mathbf{y}|} {\rm d}\mathbf{y}.
 ```
 
 In particular, the even projected spherical harmonics are eigenfunctions of $\mathcal{S}$,
@@ -57,7 +57,7 @@ where $w(\mathbf{x}) = \sqrt{1-|\mathbf{x}|^2}$ is the weight function. This can
 using ProjectedSphericalHarmonics
 
 # Degree of PSH expansion
-Mr, Mθ = 32, 16
+Mr, Mθ = 64, 16
 
 # Discretize
 D = disk(Mr, Mθ)
@@ -82,7 +82,7 @@ The projected spherical harmonics are also useful for solving Poisson problems:
 using ProjectedSphericalHarmonics
 
 # Degree of PSH expansion
-Mr, Mθ = 32, 16
+Mr, Mθ = 64, 16
 
 # Discretize
 D = disk(Mr, Mθ)

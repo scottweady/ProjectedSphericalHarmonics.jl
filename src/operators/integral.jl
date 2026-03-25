@@ -12,7 +12,7 @@ to match the size of the disk discretization.
 macro wrap_operator(name, operator!)
   name! = Symbol(name, :!)
   quote
-    function $(esc(name!))(u::AbstractMatrix{ComplexF64}, D::Disk)
+    function $(esc(name!))(u::AbstractArray{ComplexF64}, D::Disk)
       return $(esc(operator!))(u, D)
     end
     function $(esc(name))(u, D::Disk)
@@ -68,7 +68,6 @@ function laplace3d_single_layer_inverse!(f::AbstractMatrix{ComplexF64}, D::Disk)
 
 end
 
-
 """
     laplace3d_hypersingular(u, D)
 
@@ -91,7 +90,6 @@ function laplace3d_hypersingular!(u::AbstractMatrix{ComplexF64}, D::Disk)
 
 end
 
-
 """
     laplace3d_hypersingular_inverse!(f, D::Disk)
 
@@ -113,84 +111,6 @@ function laplace3d_hypersingular_inverse!(f::AbstractMatrix{ComplexF64}, D::Disk
   return f
   
 end
-
-"""
-    stokes3d_single_layer(σ::Tuple{Tuple, Tuple}, D::Disk)
-
-"""
-
-# 3D Laplace single layer on non-circular domains
-function stokeslet_decomposition(f, D::Disk)
-
-  ζ = D.ζ
-
-  # Conformal kernel
-  f1 = vec(f[1])
-  f1t = transpose(f1)
-  f2 = vec(f[2])
-  f2t = transpose(f2)
-  ζ = vec(ζ)
-  ζt = transpose(ζ)
-  
-  x, y = real.(ζ .- ζt), imag.(ζ .- ζt)
-  r = abs.(ζ .- ζt)
-  x̂ = x ./ r
-  ŷ = y ./ r
-  K11 = (1.0 .+ x̂ .* x̂) .* (f1 .- f1t)
-  K12 = x̂ .* ŷ .* (f2 .- f2t)
-  K21 = x̂ .* ŷ .* (f1 .- f1t)
-  K22 = (1.0 .+ ŷ .* ŷ) .* (f2 .- f2t)
-
-  K11[diagind(K11)] .= 0.0
-  K12[diagind(K12)] .= 0.0
-  K21[diagind(K21)] .= 0.0
-  K22[diagind(K22)] .= 0.0
-
-  # Low-rank approximation of kernel
-  U11, V11 = aca(K11)
-  U12, V12 = aca(K12)
-  U22, V22 = aca(K22)
-
-  U11, Σ11, V11 = svd(K11)
-  tol = 1e-6
-  id = Σ11/Σ11[1] .> tol
-  U11, V11 = U11[:, id] * Diagonal(Σ11[id]), V11[:, id]
-
-  return ( (U11, U12), (U12, U22) ), ( (V11, V12), (V12, V22) )
-
-end
-
-export stokeslet_decomposition
-
-function stokes3d_single_layer(σ::Tuple{Tuple, Tuple}, D::Disk)
-
-  x = real.(D.ζ), imag.(D.ζ)
-  Z = zeros(ComplexF64, size(D.ζ))
-  F = ((copy(Z), copy(Z)), (copy(Z), copy(Z)))
-  
-  for j = 1 : 2
-    xⱼ = x[j]
-    for k = 1 : 2
-      σⱼₖ = σ[j][k]
-      for i = 1 : 2
-        xᵢ = x[i]
-        δᵢⱼ = (i == j) ? 1.0 : 0.0
-        F[i][k] .+= δᵢⱼ .* 𝒮(σⱼₖ, D) + xᵢ .* xⱼ .* 𝒩(σⱼₖ, D) - xᵢ .* 𝒩(xⱼ .* σⱼₖ, D) - xⱼ .* 𝒩(xᵢ .* σⱼₖ, D) + 𝒩(xᵢ .* xⱼ .* σⱼₖ, D)
-      end
-    end
-  end
-
-  Gσ = div(F[1], D), div(F[2], D)
-  return Gσ
-
-end
-  
-export stokes3d_single_layer
-
-@wrap_operator 𝒮 laplace3d_single_layer!
-@wrap_operator 𝒮⁻¹ laplace3d_single_layer_inverse!
-@wrap_operator 𝒩 laplace3d_hypersingular!
-@wrap_operator 𝒩⁻¹ laplace3d_hypersingular_inverse!
 
 """
     laplace2d_volume(u, D)
@@ -224,9 +144,7 @@ function laplace2d_volume(u, D::Disk)
 
 end
 
-function 𝒱(u, D::Disk)
-  return laplace2d_volume(u, D)
-end
+𝒱(u, D::Disk) = laplace2d_volume(u, D)
 
 """
     bilaplace2d_volume(u, D; κ=0)
@@ -259,9 +177,7 @@ function bilaplace2d_volume(u, D::Disk; κ=0)
 
 end
 
-function ℬ(u, D::Disk; κ=0)
-  return bilaplace2d_volume(u, D; κ=κ)
-end
+ℬ(u, D::Disk; κ=0) = bilaplace2d_volume(u, D; κ=κ)
 
 """
     bilaplace3d_single_layer(u, D)
@@ -294,6 +210,83 @@ function bilaplace3d_single_layer(u, D::Disk)
 
 end
 
-function 𝒯(u, D::Disk)
-  return bilaplace3d_single_layer(u, D)
+𝒯(u, D::Disk) = bilaplace3d_single_layer(u, D)
+
+"""
+    𝒮𝒩⁻¹(u, D)
+
+Composition of 𝒮 and 𝒩⁻¹
+
+# Arguments
+- `u` : density function on the disk
+- `D` : discretization of the disk
+
+# Returns
+- 𝒮𝒩⁻¹ evaluated on the disk
+"""
+function 𝒮𝒩⁻¹(u, D::Disk)
+    û = psh(u, D)
+    f̂ = apply(D.ŜN̂⁻¹, û, D)
+    return ipsh(f̂, D, parity=:even)
 end
+
+"""
+    𝒢(f, D; η=1.0)
+
+Single layer operator for the half-space Stokes equations
+
+# Arguments
+- `f` : density function on the disk
+- `D` : discretization of the disk
+- `η` : viscosity (default: 1.0)
+
+# Returns
+- single layer potential evaluated on the disk
+"""
+function 𝒢(f::Tuple, D::Disk; η=1.0)
+
+  if isa(f[1], Number)
+    f = (fill(f[1], size(D.ζ)), fill(f[2], size(D.ζ)))
+  end
+
+  f̂ = psh(f .* D.w, D, parity=:even)
+  û = apply(D.Ĝ, f̂, D) ./ η
+  return ipsh(û, D, parity=:even)
+  
+end
+
+function 𝒢(i::Int, j::Int, f::AbstractMatrix{ComplexF64}, D; η=1.0)
+  f̂ = psh(f .* D.w, D, parity=:even)
+  û = apply(D.Ĝ[i, j], f̂, D) ./ η
+  return ipsh(û, D, parity=:even)
+end
+
+"""
+    𝒢⁻¹(u, D; η=1.0)
+
+Inverse of the single layer operator for the half-space Stokes equations
+
+# Arguments
+- `u` : velocity field on the disk
+- `D` : discretization of the disk
+- `η` : viscosity (default: 1.0)
+
+# Returns
+- density function (force) on the disk
+"""
+function 𝒢⁻¹(u::Tuple, D::Disk; η=1.0)
+
+  if isa(u[1], Number)
+    u = (fill(u[1], size(D.ζ)), fill(u[2], size(D.ζ)))
+  end
+
+  û = psh(u, D, parity=:even)
+  f̂ = solve(D.Ĝ, û, D) .* η
+  return ipsh(f̂, D, parity=:even) ./ D.w
+  
+end
+
+@wrap_operator 𝒮 laplace3d_single_layer!
+@wrap_operator 𝒮⁻¹ laplace3d_single_layer_inverse!
+@wrap_operator 𝒩 laplace3d_hypersingular!
+@wrap_operator 𝒩⁻¹ laplace3d_hypersingular_inverse!

@@ -1,4 +1,7 @@
 
+using LinearAlgebra
+using SparseArrays
+
 include("../spectral/recurrences.jl")
 
 # Define line by line elements of disk struct
@@ -11,21 +14,24 @@ struct Disk
   odd
   even
   total
+  idx_even
   r
   θ
   ζ
   dζ
   w
   dw
+  dθ
+  ∂ζ̂
+  ∂n̂
   Ŝ
   N̂
-  ∂n̂
+  Ĝ
+  ŜN̂⁻¹
   a
   am1
-  ∂ζ̂
-  Ŵ
-  Ŵ⁻¹
   W
+  Wqr
 end
 
 """
@@ -43,7 +49,7 @@ Discretization of the unit disk using projected spherical harmonics.
 function disk(Mℓ::Int, Mₘ::Int)
 
   # Polar coordinate discretization of the disk
-  r, θ, ζ, dζ, dw = diskpts(Mℓ + 1, 2Mₘ + 1)
+  r, θ, ζ, dζ, dw, dθ = diskpts(Mℓ + 1, 2Mₘ + 1)
 
   # Weight function
   w = sqrt.(1 .- abs2.(ζ))
@@ -52,11 +58,8 @@ function disk(Mℓ::Int, Mₘ::Int)
   shp = (Mℓ + 1, 2Mₘ + 1)
 
   # Azimuthal and radial mode numbers
-  Lspan = 0 : Mℓ
-  Mspan = transpose([0 : Mₘ; -Mₘ : -1])
-
-  # Short-hand names for convenience
-  L, M = Lspan, Mspan
+  L = 0 : Mℓ
+  M = transpose([0 : Mₘ; -Mₘ : -1])
 
   # Even and odd boolean
   even = (L .+ M) .% 2 .== 0 .&& abs.(M) .<= L
@@ -75,12 +78,17 @@ function disk(Mℓ::Int, Mₘ::Int)
   am1 = -(Nlm.(L .+ 1, M, L .- 1, M) .* (L .+ abs.(M)) ./ (L .- abs.(M) .+ 1))
 
   # Weight operators in coefficient space
-  Ŵ, Ŵ⁻¹, W = build_weight_operators(L, M)
+  W, Wqr = build_weight_operators(L, M)
 
   # Coefficients for ∂/∂ζ in coefficient space
-  ∂ζ̂ = 0.5 * Nlm.(L, M, L, M .- 1) .* ((M .<= 0) .* 1.0 .- (M .> 0) .* ((L .+ M) .* (L .- M .+ 1.0)))
+  ∂ζ̂ = 0.5 * Nlm.(L, M, L, M .- 1) .* ((M .<= 0) .- (M .> 0) .* ((L .+ M) .* (L .- M .+ 1.0)))
 
-  return Disk(shp, Mℓ, Mₘ, Lspan, Mspan, odd, even, total, r, θ, ζ, dζ, w, dw, Ŝ, N̂, ∂n̂, a, am1, ∂ζ̂, Ŵ, Ŵ⁻¹, W)
+  idx_even = findall(vec(even))
+  
+  Ĝ = stokes3d_single_layer_matrix(L, M, idx_even)
+  ŜN̂⁻¹ = laplace3d_SN⁻¹_matrix(L, M, idx_even)
+
+  return Disk(shp, Mℓ, Mₘ, L, M, odd, even, total, idx_even, r, θ, ζ, dζ, w, dw, dθ, ∂ζ̂, ∂n̂, Ŝ, N̂, Ĝ, ŜN̂⁻¹, a, am1, W, Wqr)
 
 end
 

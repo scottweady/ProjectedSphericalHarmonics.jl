@@ -1,3 +1,6 @@
+"""
+  Stability of a growing microbial droplet with buoyant forcing.
+"""
 
 using ProjectedSphericalHarmonics
 
@@ -5,12 +8,15 @@ using ProjectedSphericalHarmonics
 Ra, β, γ = 1, 1, 0
 
 # List of wavenumbers
-mspan = collect(0 : 8)
+# mspan = collect(0 : 8)
+mspan = [5]
 
 # Discretize
 println("Discretizing...")
-D = disk(64, 16)
 
+for M = [8,16,32,64,128]
+
+D = disk(M)
 # O(1) terms
 println("Computing base state...")
 σ₀ = 2β #concentration density
@@ -33,7 +39,11 @@ for (nm, m) in enumerate(mspan)
   # Stability coefficient
 	σₘ = real.(U₁[1]) 
 
+  σg = 1/2 .- m .* λlm(1, 0) .* λlm.(m, m) / 4;
+  σb = (β * Ra / 96) * (m .* λlm(1, 0) .* λlm.(m, m) / 4 .- 9 ./ (2 * (m .- 1) .* (2 * m .+ 1)));
+  
 	# Print 
 	println("(m, σₘ) = ", "($m, ", σₘ, ")")
-
+  println("error = ", abs(σₘ - σb))
+end
 end

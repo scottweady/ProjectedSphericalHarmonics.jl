@@ -25,7 +25,7 @@ function Δ⁻¹(f, g, D::Disk)
   end
 
   # Compute the particular solution
-  uₚ = 𝒮(𝒩⁻¹(f, D), D)
+  uₚ = 𝒮𝒩⁻¹(f, D)
 
   # Compute the boundary value correction
   ûₕ = fft(g - trace(uₚ, D))
@@ -38,7 +38,7 @@ function Δ⁻¹(f, g, D::Disk)
 end
 
 """
-    solve(L!, f)
+    gmres_wrapper(L!, f)
 
 Solve the linear system L σ = f using GMRES.
 
@@ -49,7 +49,7 @@ Solve the linear system L σ = f using GMRES.
 # Returns
 - Solution vector σ
 """
-function solve(L!, f)
+function gmres(L!, f)
 
   # Store original shape
   shp = size(f)
@@ -64,7 +64,7 @@ function solve(L!, f)
   σ = zeros(eltype(f), N)
 
   # Solve using GMRES
-  reltol = 1e-8
+  reltol = 1e-6
   op = LinearOperator(eltype(f), N, N, false, false, L!)
   σ, history = gmres!(σ, op, f; log=true, reltol=reltol)
 

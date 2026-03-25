@@ -21,7 +21,7 @@ function ∂ζ(u, D::Disk; tol=1e-15)
   û[abs.(û) .< tol] .= 0
   ∂ûw∂ζ = circshift(D.∂ζ̂ .* û, (0, -1))
   ∂ûw∂ζ[:, D.Mₘ + 1] .= 0.0 #zero out m = M mode
-  ∂û∂ζ = D.Ŵ⁻¹(∂ûw∂ζ)
+  ∂û∂ζ = Ŵ⁻¹(∂ûw∂ζ, D)
   return ipsh(∂û∂ζ, D, parity=:even)
 end
 
@@ -83,7 +83,7 @@ function grad(u, D::Disk)
   ∂u∂ζ, ∂u∂ζ̄ = ∂ζ(u, D), ∂ζ̄(u, D)
   ∂u∂x =   real.(∂u∂ζ + ∂u∂ζ̄)
   ∂u∂y =  -imag.(∂u∂ζ - ∂u∂ζ̄)
-  return (∂u∂x, ∂u∂y)
+  return (ComplexF64.(∂u∂x), ComplexF64.(∂u∂y))
 end
 
 """

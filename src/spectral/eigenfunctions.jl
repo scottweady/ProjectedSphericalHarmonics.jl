@@ -75,7 +75,7 @@ function ∂ylm∂n(l::Int, m::Int)
 
   end
 
-  return 0.0
+  return 0.0im
 
 end
 
@@ -129,6 +129,45 @@ function Nlm(l::Int, m::Int, p::Int, q::Int)
 end
 
 """
+    Clmn(l, m, n)
+
+Coefficient in the expansion of projected spherical harmonics.
+
+# Arguments
+- `l` : radial degree
+- `m` : azimuthal order
+- `n` : ...
+
+# Returns
+- scalar coefficient
+"""
+function Clmn(l::Int, m::Int, n::Int)
+
+  if abs(m) > l || abs(m + n) > l
+    return 0.0
+  end
+
+  val = -(n + 2) * log(2) + 
+    loggamma((l + m + 1) / 2) + loggamma((l - m - n + 1) / 2) - 
+    loggamma((l - m) / 2 + 1) - loggamma((l + m + n) / 2 + 1) + 
+    0.5 * (loggamma(l - m + 1) - loggamma(l + m + 1)) - 
+    0.5 * (loggamma(l - (m + n) + 1) - loggamma(l + m + n + 1))
+
+  val = exp(val)
+  
+  if m < 0
+    val *= (-1)^abs(m)
+  end
+  
+  if m + n < 0
+    val *= (-1)^abs(m + n)
+  end
+
+  return val
+
+end
+
+"""
     λlm(l, m)
 
     Generalized eigenvalues of projected spherical harmonics
@@ -150,3 +189,31 @@ function λlm(l::Int, m::Int)
 
 end
 
+"""
+    lm_index(D::Disk, l, m) -> Int
+
+Linear (vectorised) index of mode (l, m) in the coefficient array for disk `D`.
+"""
+function lm2index(l::Int, m::Int, D::Disk)
+    Nm = 2 * D.Mₘ + 1
+    nl = l + 1
+    nm = m >= 0 ? m + 1 : m + Nm + 1
+    return nl + (nm - 1) * (D.Mℓ + 1)
+end
+
+"""
+    index_lm(D::Disk, idx) -> (l, m)
+
+Mode indices (l, m) corresponding to linear index `idx` in the coefficient array for disk `D`.
+"""
+function index2lm(idx::Int, D::Disk)
+    Nm = 2D.Mₘ + 1
+    nl = mod1(idx, D.Mℓ + 1)
+    nm = cld(idx, D.Mℓ + 1)
+    l = nl - 1
+    m = nm <= D.Mₘ + 1 ? nm - 1 : nm - Nm - 1
+    return l, m
+end
+
+
+export lm2index, index2lm

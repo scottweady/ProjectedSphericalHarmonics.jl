@@ -2,6 +2,16 @@
 module ProjectedSphericalHarmonics
 
 """
+Useful operations
+"""
+
+Base.broadcasted(::typeof(*), u::Tuple, w::AbstractArray) = 
+  map(x -> x .* w, u) 
+
+Base.broadcasted(::typeof(/), u::Tuple, w::AbstractArray) = 
+  map(x -> x ./ w, u) 
+
+"""
 Domain data types and initializers
 """
 
@@ -9,9 +19,14 @@ Domain data types and initializers
 include("domains/disk.jl")
 export disk
 
-# Domain
+# Non-circular domains
+include("conformal/conformal.jl")
+include("algorithms/aca.jl")
 include("domains/domain.jl")
-export domain
+include("domains/domain_lowrank.jl")
+include("domains/ellipse.jl")
+
+export domain, domain_lowrank, ellipse
 
 """
 Spectral discretization
@@ -22,23 +37,23 @@ include("spectral/grids.jl")
 
 # Eigenfunctions
 include("spectral/eigenfunctions.jl")
-export ylm, ∂ylm∂ζ, Nlm, λlm
+export ylm, ∂ylm∂ζ, Nlm, λlm, Clmn
 
 # Transforms
 include("spectral/transforms.jl")
-export psh, ipsh, psh!, ipsh!
+export psh, ipsh, psh!, ipsh!, upsample
 
 # Algorithms
-include("algorithms/aca.jl")
 
 """
 Integral and differential operators
 """
 
 # Integral operators
+include("operators/matrices.jl")
 include("operators/integral.jl")
-export 𝒮, 𝒩, 𝒱, ℬ, 𝒯, 𝒮⁻¹, 𝒩⁻¹
-export 𝒮!, 𝒩!, 𝒮⁻¹!, 𝒩⁻¹!
+export 𝒮, 𝒩, 𝒱, ℬ, 𝒯, 𝒮⁻¹, 𝒩⁻¹, 𝒮𝒩⁻¹
+export 𝒢, 𝒢⁻¹
 
 # Differential operators
 include("operators/differential.jl")
@@ -46,10 +61,11 @@ export ∂n, ∂ζ, ∂ζ̄, ∂x, ∂y, grad, div, lap
 
 # Other operators
 include("operators/operators.jl")
-export trace, integral
+export trace, integral, Ŵ, Ŵ⁻¹
 
-# Extension to non-circular domains
-include("domains/operators.jl")
+# Extend operators to non-circular domains (overloads 𝒮, 𝒩, etc.)
+include("conformal/operators.jl")
+include("conformal/shape_derivatives.jl")
 export δ𝒮, δ𝒩, δ𝒱, δℬ
 
 """
@@ -57,8 +73,6 @@ Solvers
 """
 
 include("solvers/solvers.jl")
-export Δ⁻¹, solve
-
-include("solvers/constructor.jl")
+export Δ⁻¹, gmres
 
 end

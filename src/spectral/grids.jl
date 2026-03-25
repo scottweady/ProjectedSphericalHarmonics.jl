@@ -36,7 +36,7 @@ Return `N` equispaced points and weights on the interval `dom = [a, b]`.
 """
 function trigpts(N::Int, dom::AbstractVector{T}=[0.0, 2π]) where T<:Real
 
-  x = range(dom[1], dom[2], N + 1)
+  x = collect(range(dom[1], dom[2], N + 1))
   dx = diff(x)
   x = x[1:N]
   return x, dx
@@ -78,6 +78,8 @@ function diskpts(Nr::Int, Nθ::Int, rspan::AbstractVector{T}=[0.0, 1.0], θspan:
   # Inner product weight
   dw = -(2π / Nθ) * ds
 
-  return r, θ, ζ, dζ, dw
+  return r, θ, ζ, dζ, dw, dθ
 
 end
+
+export legpts, trigpts
