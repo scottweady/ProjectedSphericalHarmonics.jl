@@ -5,11 +5,24 @@ module ProjectedSphericalHarmonics
 Useful operations
 """
 
+Base.broadcasted(::typeof(+), u::Tuple, w::AbstractArray) = 
+  map(x -> x .+ w, u)
+
+Base.broadcasted(::typeof(-), u::Tuple, w::AbstractArray) = 
+  map(x -> x .- w, u)
+
+Base.:-(u::Tuple) = map(x -> -x, u)
+
+Base.:+(u::Tuple, v::Tuple) = map(+, u, v)
+Base.:-(u::Tuple, v::Tuple) = map(-, u, v)
+
 Base.broadcasted(::typeof(*), u::Tuple, w::AbstractArray) = 
   map(x -> x .* w, u) 
 
 Base.broadcasted(::typeof(/), u::Tuple, w::AbstractArray) = 
   map(x -> x ./ w, u) 
+
+
 
 """
 Domain data types and initializers
@@ -53,7 +66,7 @@ Integral and differential operators
 include("operators/matrices.jl")
 include("operators/integral.jl")
 export 𝒮, 𝒩, 𝒱, ℬ, 𝒯, 𝒮⁻¹, 𝒩⁻¹, 𝒮𝒩⁻¹
-export 𝒢, 𝒢⁻¹
+export 𝒮_st, 𝒮_st⁻¹
 
 # Differential operators
 include("operators/differential.jl")
@@ -61,7 +74,7 @@ export ∂n, ∂ζ, ∂ζ̄, ∂x, ∂y, grad, div, lap
 
 # Other operators
 include("operators/operators.jl")
-export trace, integral, Ŵ, Ŵ⁻¹
+export trace, integral, apply, solve
 
 # Extend operators to non-circular domains (overloads 𝒮, 𝒩, etc.)
 include("conformal/operators.jl")
@@ -74,5 +87,7 @@ Solvers
 
 include("solvers/solvers.jl")
 export Δ⁻¹, gmres
+
+include("solvers/stokes.jl")
 
 end

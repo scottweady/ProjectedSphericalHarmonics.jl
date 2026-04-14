@@ -2,13 +2,17 @@ using SpecialFunctions: loggamma, ellipe, ellipk
 using ProjectedSphericalHarmonics
 
 # Resolution
-M = 16
+M = 32
 
 # Ellipse parameters
-a,b = 2, 1
+a,b = 1.5, 1
 
 # Discretize
-Ω = ellipse(a, b, M)
+# Ω = ellipse(a, b, M)
+
+θ = range(0, 2π, 128)[1:end-1]
+γ = a * cos.(θ) + im * b * sin.(θ)
+Ω = domain(γ, M)
 
 # Compute single layer for a uniform charge
 σ = 𝒮⁻¹(1.0, Ω)
@@ -18,7 +22,7 @@ println("Error in single layer potential: ", maximum(abs.(err)))
 
 # Compute drag force on an ellipse translating in the x direction
 u = (1.0, 0.0)
-f = 𝒢⁻¹(u, Ω)
+f = 𝒮_st⁻¹(u, Ω)
 F = integral(f[1], Ω)
 
 m = 1 - (b/a)^2
@@ -26,5 +30,3 @@ m = 1 - (b/a)^2
 A = ((2a^2 - b^2) * ellipk(m) - a^2 * ellipe(m)) / (a * (a^2 - b^2))
 Fex = 4π / A
 println("Error in drag force on an ellipse: ", abs(F - Fex))
-
-display(Ω.K̂_S)

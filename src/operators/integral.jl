@@ -231,7 +231,7 @@ function 𝒮𝒩⁻¹(u, D::Disk)
 end
 
 """
-    𝒢(f, D; η=1.0)
+    𝒮_st(f, D; η=1.0)
 
 Single layer operator for the half-space Stokes equations
 
@@ -243,7 +243,7 @@ Single layer operator for the half-space Stokes equations
 # Returns
 - single layer potential evaluated on the disk
 """
-function 𝒢(f::Tuple, D::Disk; η=1.0)
+function 𝒮_st(f::Tuple, D::Disk; η=1.0)
 
   if isa(f[1], Number)
     f = (fill(f[1], size(D.ζ)), fill(f[2], size(D.ζ)))
@@ -255,14 +255,14 @@ function 𝒢(f::Tuple, D::Disk; η=1.0)
   
 end
 
-function 𝒢(i::Int, j::Int, f::AbstractMatrix{ComplexF64}, D; η=1.0)
+function 𝒮_st(i::Int, j::Int, f::AbstractMatrix{ComplexF64}, D; η=1.0)
   f̂ = psh(f .* D.w, D, parity=:even)
   û = apply(D.Ĝ[i, j], f̂, D) ./ η
   return ipsh(û, D, parity=:even)
 end
 
 """
-    𝒢⁻¹(u, D; η=1.0)
+    𝒮_st⁻¹(u, D; η=1.0)
 
 Inverse of the single layer operator for the half-space Stokes equations
 
@@ -274,7 +274,7 @@ Inverse of the single layer operator for the half-space Stokes equations
 # Returns
 - density function (force) on the disk
 """
-function 𝒢⁻¹(u::Tuple, D::Disk; η=1.0)
+function 𝒮_st⁻¹(u::Tuple, D::Disk; η=1.0)
 
   if isa(u[1], Number)
     u = (fill(u[1], size(D.ζ)), fill(u[2], size(D.ζ)))
@@ -285,6 +285,90 @@ function 𝒢⁻¹(u::Tuple, D::Disk; η=1.0)
   return ipsh(f̂, D, parity=:even) ./ D.w
   
 end
+
+function stokes_mobility_matrix(D::Disk)
+  return [16/3 0 0; 0 16/3 0; 0 0 16/3]
+end
+
+function stokes_mobility_matrix(Ω::Domain)  
+
+  x, y = real.(Ω.z), imag.(Ω.z)
+
+  e1 = (1.0, 0.0)
+  e2 = (0.0, 1.0)
+  e3 = (-y, x)
+  E = (e1, e2, e3)
+
+  M = zeros(ComplexF64, 3, 3)
+
+  for (i, e) in enumerate(E)
+    f = 𝒮_st⁻¹(e, Ω)
+    M[i,1] = integral(f[1], Ω)
+    M[i,2] = integral(f[2], Ω)
+    M[i,3] = integral(-y .* f[1] + x .* f[2], Ω)
+  end
+
+  return M
+
+end
+
+function stokes_mobility_solve(uinf, F, T, D::Disk; M=[])
+  
+  if isempty(M)
+    M = stokes_mobility_matrix(D)
+  end
+
+  # Form righthand side
+  û = psh(uinf, D)
+  f̂ = solve(D.Ĝ, û, D)
+  
+  # Compute contributions from the background flow
+  Finf1 = f̂[1][1,1] / Nlm(0,0)
+  Finf2 = f̂[2][1,1] / Nlm(0,0)
+  Tinf = (-imag.(f̂[1][2,end]) + real.(f̂[2][2,end])) / (-Nlm(1, 1))
+
+  # Add contributions from the background flow to the force and torque
+  F1, F2 = F[1] .+ Finf1, F[2] .+ Finf2
+  T = T .+ Tinf
+
+  # Solve for the velocity and angular velocity
+  R = M \ [F1; F2; T]
+  U, ω = (R[1], R[2]), R[3]
+
+  return U, ω
+
+end
+
+function stokes_mobility_solve(uinf, F, T, Ω::Domain; M=[])
+  
+  if isempty(M)
+    M = stokes_mobility_matrix(Ω)
+  end
+
+  # Get grid points
+  x, y = real.(Ω.z), imag.(Ω.z)
+
+  # Form righthand side
+  finf = 𝒮_st⁻¹(uinf, Ω)
+
+  # Compute contributions from the background flow
+  Finf1 = integral(finf[1], Ω)
+  Finf2 = integral(finf[2], Ω)
+  Tinf = integral(-y .* finf[1] + x .* finf[2], Ω)
+  
+  # Add contributions from the background flow to the force and torque
+  F1, F2 = F[1] .+ Finf1, F[2] .+ Finf2
+  T = T .+ Tinf
+
+  # Solve for the velocity and angular velocity
+  R = M \ [F1; F2; T]
+  U, ω = (R[1], R[2]), R[3]
+
+  return U, ω
+
+end
+
+export stokes_mobility_matrix, stokes_mobility_solve
 
 @wrap_operator 𝒮 laplace3d_single_layer!
 @wrap_operator 𝒮⁻¹ laplace3d_single_layer_inverse!

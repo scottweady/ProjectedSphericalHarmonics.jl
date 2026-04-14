@@ -28,13 +28,13 @@ function 𝒩⁻¹(f, Ω::Domain)
   return ipsh(û, Ω.D, parity=:odd)
 end
 
-function 𝒢(μ::Tuple, Ω::Domain; η=1.0)
+function 𝒮_st(μ::Tuple, Ω::Domain; η=1.0)
   μ̂ = psh(μ, Ω.D, parity=:even) .* Ω.D.w
   û = apply(Ω.K̂_G, μ̂, Ω.D, parity=:even)
   return ipsh(û, Ω.D, parity=:even)
 end
 
-function 𝒢⁻¹(u::Tuple, Ω::Domain; η=1.0)
+function 𝒮_st⁻¹(u::Tuple, Ω::Domain; η=1.0)
   û = psh(u, Ω.D, parity=:even)
   f̂ = solve(Ω.K̂_G, û, Ω.D, parity=:even)
   return ipsh(f̂, Ω.D, parity=:even) ./ Ω.D.w

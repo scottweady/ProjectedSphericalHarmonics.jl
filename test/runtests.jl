@@ -41,14 +41,14 @@ print_error("  Max error in 𝒩⁻¹ for (l,m) = ($l,$m): ", maximum(abs.(err))
 # Stokes operator
 f₁ = -(4 / π) * y ./ w
 f₂ =  (4 / π) * x ./ w
-u₁, u₂ = 𝒢((f₁, f₂), D)
-print_error("  Max error in 𝒢 for f₁: ", maximum(abs.(u₁ - (-y))))
-print_error("  Max error in 𝒢 for f₂: ", maximum(abs.(u₂ - (x))))
+u₁, u₂ = 𝒮_st((f₁, f₂), D)
+print_error("  Max error in 𝒮_st for f₁: ", maximum(abs.(u₁ - (-y))))
+print_error("  Max error in 𝒮_st for f₂: ", maximum(abs.(u₂ - (x))))
 
 u₁, u₂ = (-y, x)
-f₁, f₂ = 𝒢⁻¹((u₁, u₂), D)
-print_error("  Max error in 𝒢⁻¹ for f₁: ", maximum(abs.(f₁ - (-(4 / π) * y ./ w))))
-print_error("  Max error in 𝒢⁻¹ for f₂: ", maximum(abs.(f₂ - ((4 / π) * x ./ w))))
+f₁, f₂ = 𝒮_st⁻¹((u₁, u₂), D)
+print_error("  Max error in 𝒮_st⁻¹ for f₁: ", maximum(abs.(f₁ - (-(4 / π) * y ./ w))))
+print_error("  Max error in 𝒮_st⁻¹ for f₂: ", maximum(abs.(f₂ - ((4 / π) * x ./ w))))
 
 println("Testing differential operators...")
 
