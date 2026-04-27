@@ -15,7 +15,7 @@ PSH transform of function `u` on disk `D`.
 # Returns
 - PSH coefficients
 """
-function psh!(u::AbstractArray{ComplexF64}, D::Disk; parity=:even)
+function psh!(u::AbstractArray{ComplexF64}, D; parity=:even)
 
   fft!(u, 2)
 
@@ -61,14 +61,14 @@ function psh!(u::AbstractArray{ComplexF64}, D::Disk; parity=:even)
     
   end
 
-  u .*= getfield(D, parity)
+  u .*= getproperty(D, parity)
 
   return u
   
 end
 
 # Memory allocating psh
-function psh(u::AbstractArray, D::Disk; parity=:even)
+function psh(u::AbstractArray, D; parity=:even)
   u = ComplexF64.(u)
   shp = size(u)
   u = reshape(u, D.shp)
@@ -77,13 +77,11 @@ function psh(u::AbstractArray, D::Disk; parity=:even)
 end
 
 # psh for scalar input
-psh(u::Number, D::Disk; parity=:even) = psh!(fill(ComplexF64(u), size(D.ζ)), D, parity=parity)
-
-# psh for tuple input
-psh(f::Tuple, D::Disk; parity=:even) = map(fi -> psh(fi, D; parity=parity), f)
+psh(u::Number, D; parity=:even) = psh!(fill(ComplexF64(u), size(D.z)), D, parity=parity)
+psh(f::Tuple, D; parity=:even) = map(fi -> psh(fi, D; parity=parity), f)
 
 # psh for flattened input
-function psh_vec!(u, D::Disk; parity=:even)
+function psh_vec!(u, D; parity=:even)
   u = reshape(u, D.shp)
   psh!(u, D, parity=parity)
   u = vec(u)
@@ -103,9 +101,9 @@ Inverse PSH transform
 # Returns
 - grid values
 """
-function ipsh!(u::AbstractArray{ComplexF64}, D::Disk; parity=:even)
+function ipsh!(u::AbstractArray{ComplexF64}, D; parity=:even)
 
-  u .*= getfield(D, parity)
+  u .*= getproperty(D, parity)
   
   r = D.r
   w = sqrt.(1 .- r.^2)
@@ -159,7 +157,7 @@ function ipsh!(u::AbstractArray{ComplexF64}, D::Disk; parity=:even)
 end
 
 # Memory allocating ipsh
-function ipsh(û::AbstractArray, D::Disk; parity=:even)
+function ipsh(û::AbstractArray, D; parity=:even)
   û = ComplexF64.(û)
   shp = size(û)
   û = reshape(û, D.shp)
@@ -168,9 +166,9 @@ function ipsh(û::AbstractArray, D::Disk; parity=:even)
 end
 
 # Evaluation of PSH expansion at arbitrary radial points
-function ipsh(û::AbstractArray{ComplexF64}, D::Disk, r; parity=:even)
+function ipsh(û::AbstractArray{ComplexF64}, D, r; parity=:even)
 
-  û .*= getfield(D, parity)
+  û .*= getproperty(D, parity)
   
   # Compute transform
   u = zeros(ComplexF64, (length(r), D.shp[2]))
@@ -209,10 +207,10 @@ function ipsh(û::AbstractArray{ComplexF64}, D::Disk, r; parity=:even)
 end
 
 # ipsh for tuple input
-ipsh(f̂::Tuple, D::Disk; parity=:even) = map(fi -> ipsh(fi, D; parity=parity), f̂)
+ipsh(f̂::Tuple, D; parity=:even) = map(fi -> ipsh(fi, D; parity=parity), f̂)
 
 # ipsh for flattened input
-function ipsh_vec!(û, D::Disk; parity=:even)
+function ipsh_vec!(û, D; parity=:even)
   û = reshape(û, D.shp)
   ipsh!(û, D, parity=parity)
   û = vec(û)
@@ -234,7 +232,7 @@ Upsample function `u` on disk `D` to new grid with `Nr_new` radial points and `N
 - `ζ_new` : new grid points
 - upsampled function on new grid
 """
-function upsample(u, D::Disk, Nr_new::Int, Nθ_new::Int; parity=:even)
+function upsample(u, D, Nr_new::Int, Nθ_new::Int; parity=:even)
 
   û = psh(u, D, parity=parity)
 
@@ -276,7 +274,7 @@ end
 
 
 """
-  psh_matrix(D::Disk; parity=:even)
+  psh_matrix(D; parity=:even)
 
   Dense matrix representation of the PSH transform.
 
@@ -287,7 +285,7 @@ end
 # Returns
 - dense matrix representation of the PSH transform
 """
-function psh_matrix(D::Disk; parity=:total)
+function psh_matrix(D; parity=:total)
   N = length(D.ζ)
   P = Matrix{ComplexF64}(I, N, N)
   for i = 1 : N
@@ -298,7 +296,7 @@ function psh_matrix(D::Disk; parity=:total)
 end
 
 """
-  ipsh_matrix(D::Disk; parity=:even)
+  ipsh_matrix(D; parity=:even)
 
   Dense matrix representation of the inverse PSH transform.
 
@@ -309,11 +307,11 @@ end
 # Returns
 - dense matrix representation of the inverse PSH transform
 """
-function ipsh_matrix(D::Disk; parity=:total)
+function ipsh_matrix(D; parity=:total)
   N = length(D.ζ)
   Q = Matrix{ComplexF64}(I, N, N)
 
-  idx = findall(vec(getfield(D, parity)))
+  idx = findall(vec(getproperty(D, parity)))
 
   for i = idx
     e = @view Q[:, i]

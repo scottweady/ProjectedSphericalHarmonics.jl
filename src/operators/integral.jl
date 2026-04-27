@@ -286,11 +286,18 @@ function 𝒮_st⁻¹(u::Tuple, D::Disk; η=1.0)
   
 end
 
-function stokes_mobility_matrix(D::Disk)
-  return [16/3 0 0; 0 16/3 0; 0 0 16/3]
-end
+"""
+    stokes_mobility_matrix(Ω)
 
-function stokes_mobility_matrix(Ω::Domain)  
+Compute the mobility matrix for a domain Ω in a half-space Stokes flow.
+
+# Arguments
+- `Ω` : domain discretization (e.g., disk or ellipse)
+
+# Returns
+- 3x3 mobility matrix M relating forces and torques to velocities and angular velocity
+"""
+function stokes_mobility_matrix(Ω)  
 
   x, y = real.(Ω.z), imag.(Ω.z)
 
@@ -312,38 +319,24 @@ function stokes_mobility_matrix(Ω::Domain)
 
 end
 
-function stokes_mobility_solve(uinf, F, T, D::Disk; M=[])
+"""
+    stokes_mobility_solve(uinf, F, T, Ω; M=[])
+
+Solve for the velocity and angular velocity of a domain Ω in a half-space Stokes flow given background flow, forces, and torques.
+
+# Arguments
+- `uinf` : background velocity field (tuple of x and y components)
+- `F`    : applied forces (tuple of x and y components)
+- `T`    : applied torque
+- `Ω`    : domain discretization (e.g., disk or ellipse)
+- `M`    : precomputed mobility matrix (optional)
+
+# Returns
+- Tuple (U, ω) where U is the velocity vector and ω is the angular velocity
+"""
+function stokes_mobility_solve(uinf, F, T, Ω; M=[])
   
-  if isempty(M)
-    M = stokes_mobility_matrix(D)
-  end
-
-  # Form righthand side
-  û = psh(uinf, D)
-  f̂ = solve(D.Ĝ, û, D)
-  
-  # Compute contributions from the background flow
-  Finf1 = f̂[1][1,1] / Nlm(0,0)
-  Finf2 = f̂[2][1,1] / Nlm(0,0)
-  Tinf = (-imag.(f̂[1][2,end]) + real.(f̂[2][2,end])) / (-Nlm(1, 1))
-
-  # Add contributions from the background flow to the force and torque
-  F1, F2 = F[1] .+ Finf1, F[2] .+ Finf2
-  T = T .+ Tinf
-
-  # Solve for the velocity and angular velocity
-  R = M \ [F1; F2; T]
-  U, ω = (R[1], R[2]), R[3]
-
-  return U, ω
-
-end
-
-function stokes_mobility_solve(uinf, F, T, Ω::Domain; M=[])
-  
-  if isempty(M)
-    M = stokes_mobility_matrix(Ω)
-  end
+  isempty(M) ? M = stokes_mobility_matrix(Ω) : nothing
 
   # Get grid points
   x, y = real.(Ω.z), imag.(Ω.z)
@@ -357,7 +350,8 @@ function stokes_mobility_solve(uinf, F, T, Ω::Domain; M=[])
   Tinf = integral(-y .* finf[1] + x .* finf[2], Ω)
   
   # Add contributions from the background flow to the force and torque
-  F1, F2 = F[1] .+ Finf1, F[2] .+ Finf2
+  F1 = F[1] .+ Finf1
+  F2 = F[2] .+ Finf2
   T = T .+ Tinf
 
   # Solve for the velocity and angular velocity
@@ -368,7 +362,52 @@ function stokes_mobility_solve(uinf, F, T, Ω::Domain; M=[])
 
 end
 
-export stokes_mobility_matrix, stokes_mobility_solve
+"""
+    𝒮_st(tgt, f, Ω; η=1.0)
+
+Evaluate the half-space Stokes single layer potential at points outside the domain.
+
+The Green's function is G(r) = (1/4π) * (I + r̂ r̂ᵀ) / |r|, where r = x - y
+is the 2D separation vector. Direct quadrature is used since tgt lies outside
+the support and there is no singularity.
+
+# Arguments
+- `tgt` : evaluation points as a complex array (x + iy)
+- `f`     : force density as a tuple (fx, fy)
+- `Ω`     : domain discretization
+- `η`     : viscosity (default: 1.0)
+
+# Returns
+- Tuple (ux, uy) with the same shape as `tgt`
+"""
+function 𝒮_st(tgt::ComplexF64, f::Tuple, Ω; η=1.0)
+
+  if isa(f[1], Number)
+    f = (fill(f[1], size(Ω.z)), fill(f[2], size(Ω.z)))
+  end
+
+  z, dz = vec(Ω.z), vec(Ω.dz)
+
+  # Quadrature-weighted force components (dζ is real)
+  fxw, fyw = vec(f[1]) .* dz, vec(f[2]) .* dz
+
+  # Displacement matrix: r[i,j] = x[i] - z[j],  shape (n_eval × n_src)
+  r = tgt .- z
+  rx, ry, rabs = real.(r), imag.(r), abs.(r)
+
+  # r · f  (dot product in 2D, shape n_eval × n_src)
+  rdotf = rx .* fxw .+ ry .* fyw
+
+  ux = (1 / (4π * η)) .* sum(fxw ./ rabs .+ rdotf .* rx ./ rabs.^3)
+  uy = (1 / (4π * η)) .* sum(fyw ./ rabs .+ rdotf .* ry ./ rabs.^3)
+
+  return (ux, uy)
+
+end
+
+𝒮_st(tgt::AbstractArray{ComplexF64}, f::Tuple, Ω; η=1.0) = 𝒮_st.(tgt, Ref(f), Ref(Ω); η=η)
+
+export stokes_mobility_matrix, stokes_mobility_solve, stokes2d_single_layer_exterior
 
 @wrap_operator 𝒮 laplace3d_single_layer!
 @wrap_operator 𝒮⁻¹ laplace3d_single_layer_inverse!

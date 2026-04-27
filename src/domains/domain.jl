@@ -84,3 +84,7 @@ function domain(γ, Mℓ::Int, Mₘ::Int)
 end
 
 domain(γ, M::Int) = domain(γ, M, M)
+
+const _domain_fields = fieldnames(Domain)
+Base.getproperty(Ω::Domain, s::Symbol) =
+  s ∈ _domain_fields ? getfield(Ω, s) : getproperty(getfield(Ω, :D), s)

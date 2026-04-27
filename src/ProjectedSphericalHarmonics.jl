@@ -30,16 +30,15 @@ Domain data types and initializers
 
 # Disk
 include("domains/disk.jl")
-export disk
+export disk, Disk
 
 # Non-circular domains
 include("conformal/conformal.jl")
 include("algorithms/aca.jl")
 include("domains/domain.jl")
-include("domains/domain_lowrank.jl")
 include("domains/ellipse.jl")
 
-export domain, domain_lowrank, ellipse
+export domain, ellipse, Domain
 
 """
 Spectral discretization

@@ -93,3 +93,7 @@ function disk(Mℓ::Int, Mₘ::Int)
 end
 
 disk(M::Int) = disk(M, M)
+
+Base.getproperty(D::Disk, s::Symbol) = s === :z  ? getfield(D, :ζ)  :
+                                       s === :dz ? getfield(D, :dζ) :
+                                       getfield(D, s)
