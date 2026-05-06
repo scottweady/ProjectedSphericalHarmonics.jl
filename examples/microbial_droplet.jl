@@ -8,15 +8,14 @@ using ProjectedSphericalHarmonics
 Ra, β, γ = 1, 1, 0
 
 # List of wavenumbers
-# mspan = collect(0 : 8)
-mspan = [5]
+mspan = collect(0 : 8)
 
 # Discretize
 println("Discretizing...")
 
-for M = [8,16,32,64,128]
-
+M = 32
 D = disk(M)
+
 # O(1) terms
 println("Computing base state...")
 σ₀ = 2β #concentration density
@@ -44,6 +43,5 @@ for (nm, m) in enumerate(mspan)
   
 	# Print 
 	println("(m, σₘ) = ", "($m, ", σₘ, ")")
-  println("error = ", abs(σₘ - σb))
-end
+
 end

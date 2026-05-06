@@ -1,5 +1,6 @@
 using SpecialFunctions: loggamma, ellipe, ellipk
 using ProjectedSphericalHarmonics
+using Plots
 
 # Resolution
 M = 32
@@ -7,7 +8,6 @@ M = 32
 # Ellipse parameters
 a,b = 1.5, 1
 
-# Conformal mapping approach
 θ = range(0, 2π, 128)[1:end-1]
 γ = a * cos.(θ) + im * b * sin.(θ)
 
@@ -31,9 +31,8 @@ for (n, Ω) in enumerate([ellipse(a, b, M), domain(γ, M)])
   F = integral(f[1], Ω)
 
   m = 1 - (b/a)^2
-
   A = ((2a^2 - b^2) * ellipk(m) - a^2 * ellipe(m)) / (a * (a^2 - b^2))
   Fex = 4π / A
-  println("Error in drag force on an ellipse: ", abs(F - Fex))
 
+  println("Error in drag force on an ellipse: ", abs(F - Fex))
 end

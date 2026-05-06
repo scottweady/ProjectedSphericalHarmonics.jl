@@ -55,8 +55,6 @@ export ylm, ∂ylm∂ζ, Nlm, λlm, Clmn
 include("spectral/transforms.jl")
 export psh, ipsh, psh!, ipsh!, upsample
 
-# Algorithms
-
 """
 Integral and differential operators
 """
@@ -64,7 +62,9 @@ Integral and differential operators
 # Integral operators
 include("operators/matrices.jl")
 include("operators/integral.jl")
-export 𝒮, 𝒩, 𝒱, ℬ, 𝒯, 𝒮⁻¹, 𝒩⁻¹, 𝒮𝒩⁻¹
+include("operators/stokes.jl")
+export 𝒮, 𝒩, 𝒮⁻¹, 𝒩⁻¹, 𝒮𝒩⁻¹
+export 𝒱, ℬ, 𝒯
 export 𝒮_st, 𝒮_st⁻¹
 
 # Differential operators
@@ -76,7 +76,6 @@ include("operators/operators.jl")
 export trace, integral, apply, solve
 
 # Extend operators to non-circular domains (overloads 𝒮, 𝒩, etc.)
-include("conformal/operators.jl")
 include("conformal/shape_derivatives.jl")
 export δ𝒮, δ𝒩, δ𝒱, δℬ
 

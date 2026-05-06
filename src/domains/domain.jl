@@ -52,8 +52,8 @@ function domain(γ, Mℓ::Int, Mₘ::Int)
   even, odd = findall(vec(D.even)), findall(vec(D.odd))
 
   P, Q = psh_matrix(D), ipsh_matrix(D)
-  K_S .*= Q[:,even] * (D.Ŝ[even] .* P[even, :])
-  K_N .*= Q[:,odd] * (D.N̂[odd] .* P[odd, :])
+  K_S .*= Q[:,even] * (D.K̂_S[even] .* P[even, :])
+  K_N .*= Q[:,odd] * (D.K̂_N[odd] .* P[odd, :])
 
   Ŝcc = laplace3d_angular_matrix(ϕ -> cos(ϕ)^2, D.Lspan, D.Mspan, even)
   Ŝsc = laplace3d_angular_matrix(ϕ -> cos(ϕ) * sin(ϕ), D.Lspan, D.Mspan, even)

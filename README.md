@@ -1,6 +1,13 @@
 # ProjectedSphericalHarmonics.jl
 
-A Julia package for solving integro-differential equations on the disk using projected spherical harmonics.
+A lightweight Julia library for solving integral equations on flat open surfaces using projected spherical harmonics.
+
+Currently the code supports:
+- Laplace single layer and hypersingular operators
+- Stokes single layer operator with mobility solver
+- Bilaplace single layer
+- Differential operators (grad, div, lap)
+- Non-circular domains via conformal mapping singularity swapping
 
 ## Mathematical Background
 
@@ -87,7 +94,6 @@ Mr, Mθ = 64, 16
 # Discretize
 D = disk(Mr, Mθ)
 ζ = D.ζ #grid points
-w = D.w #weight function
 
 f = -1 # right-hand side
 g = 0 # boundary condition

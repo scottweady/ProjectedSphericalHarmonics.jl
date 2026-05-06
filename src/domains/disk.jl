@@ -24,9 +24,9 @@ struct Disk
   dθ
   ∂ζ̂
   ∂n̂
-  Ŝ
-  N̂
-  Ĝ
+  K̂_S
+  K̂_N
+  K̂_G
   ŜN̂⁻¹
   a
   am1
@@ -70,8 +70,8 @@ function disk(Mℓ::Int, Mₘ::Int)
   ∂n̂ = ∂ylm∂n.(L, M)
 
   # Integral operators in coefficient space
-  Ŝ = even .* (λlm.(L, M) ./ 4.0)
-  N̂ = -odd .* (1.0 ./ λlm.(L, M))
+  K̂_S = λlm.(L, M) ./ 4.0
+  K̂_N = -1.0 ./ λlm.(L, M)
 
   # Recursion coefficients
   a =    (Nlm.(L .+ 1, M, L, M) .* (2 * L .+ 1) ./ (L .- abs.(M) .+ 1))
@@ -85,10 +85,10 @@ function disk(Mℓ::Int, Mₘ::Int)
 
   idx_even = findall(vec(even))
   
-  Ĝ = stokes3d_single_layer_matrix(L, M, idx_even)
+  K̂_G = stokes3d_single_layer_matrix(L, M, idx_even)
   ŜN̂⁻¹ = laplace3d_SN⁻¹_matrix(L, M, idx_even)
 
-  return Disk(shp, Mℓ, Mₘ, L, M, odd, even, total, idx_even, r, θ, ζ, dζ, w, dw, dθ, ∂ζ̂, ∂n̂, Ŝ, N̂, Ĝ, ŜN̂⁻¹, a, am1, W, Wqr)
+  return Disk(shp, Mℓ, Mₘ, L, M, odd, even, total, idx_even, r, θ, ζ, dζ, w, dw, dθ, ∂ζ̂, ∂n̂, K̂_S, K̂_N, K̂_G, ŜN̂⁻¹, a, am1, W, Wqr)
 
 end
 

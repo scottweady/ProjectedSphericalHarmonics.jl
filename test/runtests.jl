@@ -13,3 +13,4 @@ end
 include("test_integral.jl")
 include("test_differential.jl")
 include("test_domain.jl")
+include("test_stokes_mobility.jl")
