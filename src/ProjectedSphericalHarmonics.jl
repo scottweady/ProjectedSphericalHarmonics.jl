@@ -86,6 +86,6 @@ Solvers
 include("solvers/solvers.jl")
 export Δ⁻¹, gmres
 
-include("solvers/stokes.jl")
+include("suspensions/stokes.jl")
 
 end

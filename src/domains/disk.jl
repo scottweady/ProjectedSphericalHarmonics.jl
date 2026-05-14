@@ -27,7 +27,7 @@ struct Disk
   K̂_S
   K̂_N
   K̂_G
-  ŜN̂⁻¹
+  ŜN̂⁻¹
   a
   am1
   W
@@ -84,11 +84,11 @@ function disk(Mℓ::Int, Mₘ::Int)
   ∂ζ̂ = 0.5 * Nlm.(L, M, L, M .- 1) .* ((M .<= 0) .- (M .> 0) .* ((L .+ M) .* (L .- M .+ 1.0)))
 
   idx_even = findall(vec(even))
-  
-  K̂_G = stokes3d_single_layer_matrix(L, M, idx_even)
-  ŜN̂⁻¹ = laplace3d_SN⁻¹_matrix(L, M, idx_even)
 
-  return Disk(shp, Mℓ, Mₘ, L, M, odd, even, total, idx_even, r, θ, ζ, dζ, w, dw, dθ, ∂ζ̂, ∂n̂, K̂_S, K̂_N, K̂_G, ŜN̂⁻¹, a, am1, W, Wqr)
+  K̂_G = stokes3d_single_layer_matrix(L, M, idx_even)
+  ŜN̂⁻¹ = laplace3d_SN⁻¹_matrix(L, M, idx_even)
+
+  return Disk(shp, Mℓ, Mₘ, L, M, odd, even, total, idx_even, r, θ, ζ, dζ, w, dw, dθ, ∂ζ̂, ∂n̂, K̂_S, K̂_N, K̂_G, ŜN̂⁻¹, a, am1, W, Wqr)
 
 end
 

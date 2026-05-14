@@ -104,42 +104,34 @@ function stokes_mobility_matrix(Ω)
 end
 
 """
-    stokes_mobility_solve(uinf, F, T, Ω; M=[])
+    stokes_mobility_solve(uinf, uslip, F, Ω; M=[])
 
 Solve for the velocity and angular velocity of a domain Ω in a half-space Stokes flow given background flow, forces, and torques.
 
 # Arguments
-- `uinf` : background velocity field (tuple of x and y components)
-- `F`    : applied forces (tuple of x and y components)
-- `T`    : applied torque
-- `Ω`    : domain discretization (e.g., disk or ellipse)
-- `M`    : precomputed mobility matrix (optional)
+- `uinf`  : background velocity field (tuple of x and y components)
+- `uslip` : prescribed slip velocity (tuple of x and y components), or nothing for no-slip
+- `F`     : applied force and torque vector [Fx, Fy, T]
+- `Ω`     : domain discretization (e.g., disk or ellipse)
+- `M`     : precomputed mobility matrix (optional)
 
 # Returns
 - Tuple (U, ω) where U is the velocity vector and ω is the angular velocity
 """
-function stokes_mobility_solve(uinf, F, T, Ω; M=[])
-  
+function stokes_mobility_solve(uinf, uslip, F, Ω; M=[])
+
   isempty(M) ? M = stokes_mobility_matrix(Ω) : nothing
 
-  # Get grid points
   x, y = real.(Ω.z), imag.(Ω.z)
 
-  # Form righthand side
-  finf = 𝒮_st⁻¹(uinf, Ω)
+  ueff = uslip === nothing ? uinf : uinf .- uslip
+  finf = 𝒮_st⁻¹(ueff, Ω)
 
-  # Compute contributions from the background flow
   Finf1 = integral(finf[1], Ω)
   Finf2 = integral(finf[2], Ω)
-  Tinf = integral(-y .* finf[1] + x .* finf[2], Ω)
-  
-  # Add contributions from the background flow to the force and torque
-  F1 = F[1] .+ Finf1
-  F2 = F[2] .+ Finf2
-  T = T .+ Tinf
+  Tinf  = integral(-y .* finf[1] + x .* finf[2], Ω)
 
-  # Solve for the velocity and angular velocity
-  R = M \ [F1; F2; T]
+  R = M \ [F[1] .+ Finf1; F[2] .+ Finf2; F[3] .+ Tinf]
   U, ω = (R[1], R[2]), R[3]
 
   return U, ω

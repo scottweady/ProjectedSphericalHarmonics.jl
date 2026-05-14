@@ -1,41 +1,42 @@
 
 using ProjectedSphericalHarmonics
 
-println("Testing stokes_mobility_fmm_solve...")
+println("Testing Stokes mobility solve...")
 
 Mr, Mθ = 32, 16
 D  = disk(Mr, Mθ)
-xg = real.(D.z)
-yg = imag.(D.z)
+x,y = real.(D.z), imag.(D.z)
 
 # ── Test 1: N=1, compare against single-body solver ──────────────────────────
 
 xcm  = [0.0 + 0.0im]
-uinf_shear(z) = (imag.(z), zero(real.(z)))    # linear shear: ux = y, uy = 0
+uinf(z) = (imag.(z), zero(real.(z)))    # linear shear: ux = y, uy = 0
 F    = [[1.0, 0.5, 0.1]]
 
-f_sol, U_sol = stokes_mobility_fmm_solve(xcm, uinf_shear, nothing, F, D)
+f_sol, U_sol = suspension_mobility_solve(xcm, zeros(length(xcm)), uinf, nothing, F, D)
 
 # Reference via single-body solver (body at origin so z = D.z)
-uinf1 = uinf_shear(D.z)
-U_ref, ω_ref = stokes_mobility_solve(uinf1, (F[1][1], F[1][2]), F[1][3], D)
+uinf1 = uinf(D.z)
+U_ref, ω_ref = stokes_mobility_solve(uinf1, nothing, F[1], D)
 err = maximum([abs(U_sol[1][1] - U_ref[1]), abs(U_sol[1][2] - U_ref[2]), abs(U_sol[1][3] - ω_ref)])
 print_error("  N=1 direct mobility solve vs fmm solve: ", err)
 
-# ── Test 2: N=2, rigid-body background flow (exact known answer) ──────────────
-# For uinf(z) = (U0 - ω0·y, V0 + ω0·x), the particles move exactly with (U0,V0,ω0)
-# and the surface force density is zero.
+# ── Test 2: N=2, non-zero orientations, rigid-body background flow ────────────
+# Same exact solution as Test 2 (f=0, U = uinf), but with non-zero θcm.
+# Tests that body-frame rotation of uinf is handled correctly.
 
-U0, V0, ω0 = 1.0, 0.5, 0.2
-uinf(z) = (U0 .- ω0 .* imag.(z), V0 .+ ω0 .* real.(z))
+U0, V0, ω0 = 0.7, 0.3, 0.15
+uinf3(z) = (U0 .- ω0 .* imag.(z), V0 .+ ω0 .* real.(z))
 
-xcm2 = [0.0 + 0.0im, 5.0 + 0.0im]
-F2   = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
-_, U2 = stokes_mobility_fmm_solve(xcm2, uinf, nothing, F2, D)
+xcm3 = [0.0 + 0.0im, 4.0 + 3.0im]
+θcm3 = [π/4, π/3]
+F3   = [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+
+_, U3 = suspension_mobility_solve(xcm3, θcm3, uinf3, nothing, F3, D)
 
 for i in 1:2
-  Ux_exact = U0 - ω0 * imag(xcm2[i])
-  Uy_exact = V0 + ω0 * real(xcm2[i])
-  err_i = maximum([abs(U2[i][1] - Ux_exact), abs(U2[i][2] - Uy_exact), abs(U2[i][3] - ω0)])
-  print_error("  N=2 mobility solve $i: ",err_i)
+  Ux_exact = U0 - ω0 * imag(xcm3[i])
+  Uy_exact = V0 + ω0 * real(xcm3[i])
+  err_i = maximum([abs(U3[i][1] - Ux_exact), abs(U3[i][2] - Uy_exact), abs(U3[i][3] - ω0)])
+  print_error("  N=2 oriented mobility solve $i: ", err_i)
 end
