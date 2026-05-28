@@ -154,7 +154,7 @@ Preconditioned by independent single-body mobility solves (block-diagonal).
 - `f` : vector of N force density tuples (fx, fy)
 - `U` : vector of N rigid body velocity vectors [Ux, Uy, ω]
 """
-function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e-6, M=[])
+function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e-6, gmrestol=1e-6, M=[], verbose=false)
 
   N_body   = length(xcm)
   Nz  = length(Ω.z)
@@ -265,12 +265,14 @@ function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e
   # GMRES with block-diagonal preconditioner
   sol = zeros(ComplexF64, Ntotal)
   op  = LinearOperator(ComplexF64, Ntotal, Ntotal, false, false, matvec!)
-  sol, history = gmres!(sol, op, rhs; Pl=_FuncPrecond(precond!), log=true, reltol=1e-6)
+  sol, history = gmres!(sol, op, rhs; Pl=_FuncPrecond(precond!), log=true, reltol=gmrestol)
 
-  if history.isconverged
-    println("GMRES converged in $(history.iters) iterations.")
-  else
-    println("GMRES did not converge in $(history.iters) iterations.")
+  if verbose
+    if history.isconverged
+      println("GMRES converged in $(history.iters) iterations.")
+    else
+      println("GMRES did not converge in $(history.iters) iterations.")
+    end
   end
 
   # Unpack and convert back to physical space
@@ -287,4 +289,4 @@ end
 export suspension_mobility_solve, suspension_velocity_eval, suspension_velocity_solve
   
 𝒮_st(xcm, θcm, f_body::Vector, Ω; eps=1e-6) = suspension_velocity_eval(xcm, θcm, f_body, Ω; eps=eps)
-𝒮_st⁻¹(xcm, θcm, u_body::Vector, Ω; eps=1e-6) = suspension_velocity_solve(xcm, θcm, u_body, Ω; eps=eps)
+𝒮_st⁻¹(xcm, θcm, u_body::Vector, Ω; eps=1e-6, gmrestol=1e-6) = suspension_velocity_solve(xcm, θcm, u_body, Ω; eps=eps, gmrestol=gmrestol)

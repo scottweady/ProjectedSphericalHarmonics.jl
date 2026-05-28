@@ -13,7 +13,7 @@ Discretization of an ellipse under affine transformation of the unit disk.
 # Returns
 - Domain containing discretization information
 """
-function ellipse(a, b, Mℓ::Int, Mₘ::Int)
+function ellipse(a, b, Mℓ::Int, Mₘ::Int; tol=1e-15)
 
   # Polar coordinate discretization of the ellipse
   D = disk(Mℓ, Mₘ)
@@ -39,7 +39,7 @@ function ellipse(a, b, Mℓ::Int, Mₘ::Int)
   g(θ) = a * b / ρ(θ)
 
   # Single layer operator in coefficient space
-  K̂_S = laplace3d_angular_matrix(g, L, M, idx_even)
+  K̂_S = laplace3d_angular_matrix(g, L, M, idx_even; tol=tol)
   
   # Stokes operator in coefficient space
   g11(θ) = (1 / ρ(θ) + a^2 * cos(θ)^2 / ρ(θ)^3) * a * b
@@ -47,10 +47,10 @@ function ellipse(a, b, Mℓ::Int, Mₘ::Int)
   g22(θ) = (1 / ρ(θ) + b^2 * sin(θ)^2 / ρ(θ)^3) * a * b
 
   K̂_G = Matrix{Matrix{ComplexF64}}(undef, 2, 2)
-  K̂_G[1, 1] = laplace3d_angular_matrix(g11, L, M, idx_even)
-  K̂_G[1, 2] = laplace3d_angular_matrix(g12, L, M, idx_even)
+  K̂_G[1, 1] = laplace3d_angular_matrix(g11, L, M, idx_even; tol=tol)
+  K̂_G[1, 2] = laplace3d_angular_matrix(g12, L, M, idx_even; tol=tol)
   K̂_G[2, 1] = K̂_G[1, 2]
-  K̂_G[2, 2] = laplace3d_angular_matrix(g22, L, M, idx_even)
+  K̂_G[2, 2] = laplace3d_angular_matrix(g22, L, M, idx_even; tol=tol)
 
   # Return domain struct
   return Domain(D, f, df, z, dz, [], [], [], K̂_S, [], K̂_G)
@@ -58,4 +58,4 @@ function ellipse(a, b, Mℓ::Int, Mₘ::Int)
 end
 
 # Convenient method for equal radial and azimuthal discretization
-ellipse(a, b, M::Int) = ellipse(a, b, M, M)
+ellipse(a, b, M::Int; tol=1e-15) = ellipse(a, b, M, M; tol=tol)
