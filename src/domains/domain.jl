@@ -13,6 +13,7 @@ struct Domain
   K̂_S
   K̂_N
   K̂_G
+  ext       # EllipseGeometry for close evaluation, or nothing
 end
 
 """
@@ -79,7 +80,7 @@ function domain(γ, Mℓ::Int, Mₘ::Int)
   K̂_G[2,1] = K̂_G[1,2]
   K̂_G[2,2] = P[even,:] * K_G[2, 2] * Q[:,even]
 
-  return Domain(D, f, df, z, dz, K_S, K_N, K_G, K̂_S, K̂_N, K̂_G)
+  return Domain(D, f, df, z, dz, K_S, K_N, K_G, K̂_S, K̂_N, K̂_G, nothing)
   
 end
 

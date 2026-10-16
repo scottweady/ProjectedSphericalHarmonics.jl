@@ -53,6 +53,39 @@ function laplace3d_SN⁻¹_matrix(Lspan, Mspan, idx)
 end
 
 """
+    fourier_coeffs(g; N0=64, tol=1e-15, Nmax=2^16)
+
+Fourier coefficients ĝ_k = (1/N) ∑_j g(t_j) e^{-ikt_j} of a periodic function g, in FFT
+order (k ≥ 0 at k+1, k < 0 at k+N+1). The number of points N starts at N0 and is doubled
+until the coefficients in the upper half of the band (N/4 ≤ |k| ≤ N/2) fall below
+`tol * max|ĝ|`, so that the retained modes are free of aliasing.
+
+# Arguments
+- `g`    : function `t -> scalar` (or a tuple of such functions, sharing one N)
+- `N0`   : initial number of points (power of 2)
+- `tol`  : relative tolerance on the tail
+- `Nmax` : maximum number of points
+
+# Returns
+- vector of Fourier coefficients (or a tuple of them)
+"""
+function fourier_coeffs(g::Tuple; N0=64, tol=1e-15, Nmax=2^16)
+
+  N = N0
+  while true
+    ts = 2π .* (0:N-1) ./ N
+    ĝ  = map(gi -> fft(gi.(ts)) ./ N, g)
+    tail  = maximum(gk -> maximum(abs, view(gk, N÷4+1:3N÷4+1)), ĝ)
+    scale = maximum(gk -> maximum(abs, gk), ĝ)
+    (tail <= tol * scale || N >= Nmax) && return ĝ
+    N *= 2
+  end
+
+end
+
+fourier_coeffs(g; kwargs...) = fourier_coeffs((g,); kwargs...)[1]
+
+"""
     laplace3d_angular_matrix(g, Lspan, Mspan, idx; Nθ=nothing, tol=1e-14)
 
 Sparse PSH matrix for the operator defined by a scalar function g(t).
@@ -62,11 +95,13 @@ whose (l,m) → (l,m-k) entries are ĝ_k * Clmn(l, m-k, k), coupling each PSH mo
 to modes shifted in azimuthal order by each nonzero Fourier mode of g.
 
 # Arguments
-- `g`     : function `t -> scalar` (real or complex valued)
+- `g`     : function `t -> scalar` (real or complex valued), or its Fourier
+            coefficients in FFT order (e.g. from `fourier_coeffs`)
 - `Lspan` : vector of radial mode numbers
 - `Mspan` : vector of azimuthal mode numbers (ordered 0, 1, …, Mₘ, -Mₘ, …, -1)
 - `idx`   : linear indices of the even PSH modes to retain
-- `Nθ`    : Fourier quadrature points (default: next power of 2 ≥ 4Mₘ+4)
+- `Nθ`    : Fourier quadrature points (default: chosen by the decay of ĝ, at least the
+            next power of 2 ≥ 4Mₘ+4)
 - `tol`   : cutoff for negligible Fourier coefficients
 
 # Returns
@@ -74,17 +109,26 @@ to modes shifted in azimuthal order by each nonzero Fourier mode of g.
 """
 function laplace3d_angular_matrix(g, Lspan, Mspan, idx; Nθ=nothing, tol=1e-14)
 
+  Mₘ = length(Mspan) ÷ 2
+
+  # Fourier coefficients: ĝ_k = (1/Nθ) ∑_j g(t_j) e^{-ikt_j}
+  if isnothing(Nθ)
+    ĝ = fourier_coeffs(g; N0=nextpow(2, 4Mₘ + 4), tol=min(tol, 1e-15))
+  else
+    ts = 2π .* (0:Nθ-1) ./ Nθ
+    ĝ  = fft(g.(ts)) ./ Nθ
+  end
+
+  return laplace3d_angular_matrix(ĝ, Lspan, Mspan, idx; tol=tol)
+
+end
+
+function laplace3d_angular_matrix(ĝ::AbstractVector, Lspan, Mspan, idx; tol=1e-14)
+
   Nl, Nm = length(Lspan), length(Mspan)
   N  = Nl * Nm
   Mₘ = Nm ÷ 2
-
-  if isnothing(Nθ)
-    Nθ = nextpow(2, 4Mₘ + 4)
-  end
-
-  # Fourier coefficients: ĝ_k = (1/Nθ) ∑_j g(t_j) e^{-ikt_j}
-  ts = 2π .* (0:Nθ-1) ./ Nθ
-  ĝ  = fft(g.(ts)) ./ Nθ
+  Nθ = length(ĝ)
 
   # FFTW index for mode k: k ≥ 0 → k+1, k < 0 → k+Nθ+1
   k_to_fft_idx(k) = k >= 0 ? k + 1 : k + Nθ + 1
@@ -97,6 +141,7 @@ function laplace3d_angular_matrix(g, Lspan, Mspan, idx; Nθ=nothing, tol=1e-14)
 
   for k in vcat(0:Nθ÷2-1, -(Nθ÷2):-1)
 
+    abs(k) > 2Mₘ && continue    # no pair of retained orders differs by k
     ĝk = ĝ[k_to_fft_idx(k)]
     abs(ĝk) < tol && continue
 

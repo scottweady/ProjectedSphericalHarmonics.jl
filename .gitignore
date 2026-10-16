@@ -2,6 +2,7 @@
 .claude
 
 archive
+docs
 local
 examples/*/
 

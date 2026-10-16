@@ -45,11 +45,12 @@ Solve the linear system L σ = f using GMRES.
 # Arguments
 - `L!` : function that applies the linear operator L
 - `f` : right-hand side vector
+- `reltol` : relative residual tolerance
 
 # Returns
 - Solution vector σ
 """
-function gmres(L!, f)
+function gmres(L!, f; reltol=1e-6)
 
   # Store original shape
   shp = size(f)
@@ -64,7 +65,6 @@ function gmres(L!, f)
   σ = zeros(eltype(f), N)
 
   # Solve using GMRES
-  reltol = 1e-6
   op = LinearOperator(eltype(f), N, N, false, false, L!)
   σ, history = gmres!(σ, op, f; log=true, reltol=reltol)
 

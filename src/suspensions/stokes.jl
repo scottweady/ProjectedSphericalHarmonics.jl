@@ -4,7 +4,18 @@ using FMM3D
 rotate(ux, uy, θ) = (cos(θ) .* ux .- sin(θ) .* uy,
                      sin(θ) .* ux .+ cos(θ) .* uy)
 
-function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=1e-6)
+include("close_eval.jl")
+
+"""
+    suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=1e-6, close=nothing, f̃_body=nothing)
+
+Velocity (body frame) at the collocation points of every body due to the force densities
+`f_body` (body frame). Self terms are spectral; cross terms use one FMM call over the
+collocation nodes, and near targets in `close` (from `close_eval_plan`) are corrected with
+the closed form. `f̃_body` are the even PSH coefficients of f·ω; they are computed from
+`f_body` if not given.
+"""
+function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=1e-6, close=nothing, f̃_body=nothing)
 
   N_body   = length(f_body)
   Nz  = length(Ω.z)
@@ -48,6 +59,12 @@ function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body,
     out.pot[:, idx] .-= self.pottarg
   end
 
+  # Close evaluation: replace node quadrature at targets near another body
+  if !isnothing(close) && !isempty(close)
+    f̃ = isnothing(f̃_body) ? [psh(f_body[j] .* Ω.w, Ω) for j in 1 : N_body] : f̃_body
+    close_eval_correct!(out.pot, sources, stoklets, close, f̃, θcm, Ω)
+  end
+
   # FMM uses G/(8π), stokeslet_direct uses G/(4π), so multiply by 2
   # Rotate world-frame FMM output back to body frame of each target body
   for i = 1 : N_body
@@ -63,14 +80,15 @@ function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body,
 
 end
 
-function suspension_velocity_eval(xcm, θcm, f_body::Vector, Ω; eps=1e-6)
+function suspension_velocity_eval(xcm, θcm, f_body::Vector, Ω; eps=1e-6, close_eval=true, close_radius=CLOSE_RADIUS)
+  close = close_eval ? close_eval_plan(xcm, θcm, Ω; close_radius=close_radius) : nothing
   N_body   = length(f_body)
   Nz  = length(Ω.z)
   shp = size(Ω.z)
   u_body = [(zeros(ComplexF64, shp), zeros(ComplexF64, shp)) for _ in 1 : N_body]
   sources  = zeros(Float64, 3, N_body * Nz)
   stoklets = zeros(Float64, 3, N_body * Nz)
-  return suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=eps)
+  return suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=eps, close=close)
 end
 
 """
@@ -87,11 +105,13 @@ f = f̃/Ω.w to improve conditioning.
 - `θcm` : vector of N particle orientations (radians)
 - `u_body`   : vector of N tuples of velocity matrices (ux, uy) at collocation points
 - `Ω`   : disk discretization
+- `close_eval`   : correct cross terms between nearby bodies with the closed form (ellipses and disks)
+- `close_radius` : near-target radius for close evaluation (see `CLOSE_RADIUS`)
 
 # Returns
 - Vector of N tuples of force matrices (fx, fy) at collocation points
 """
-function suspension_velocity_solve(xcm, θcm, u_body::Vector, Ω; eps=1e-6)
+function suspension_velocity_solve(xcm, θcm, u_body::Vector, Ω; eps=1e-6, gmrestol=1e-6, close_eval=true, close_radius=CLOSE_RADIUS)
 
   N_body   = length(u_body)
   Nz  = length(Ω.z)
@@ -101,6 +121,9 @@ function suspension_velocity_solve(xcm, θcm, u_body::Vector, Ω; eps=1e-6)
   ũ_buf    = [(zeros(ComplexF64, shp), zeros(ComplexF64, shp)) for _ in 1 : N_body]
   sources  = zeros(Float64, 3, N_body * Nz)
   stoklets = zeros(Float64, 3, N_body * Nz)
+
+  # Closed-form maps for nearby bodies (geometry only)
+  close = close_eval ? close_eval_plan(xcm, θcm, Ω; close_radius=close_radius) : nothing
 
   pack(V̂) = vcat([vcat(vec(V̂[i][1]), vec(V̂[i][2])) for i in 1 : N_body]...)
 
@@ -112,12 +135,12 @@ function suspension_velocity_solve(xcm, θcm, u_body::Vector, Ω; eps=1e-6)
   function A!(result, v)
     f̃ = unpack(v)
     f  = [fi ./ Ω.w for fi in ipsh.(f̃, Ref(Ω))]
-    suspension_velocity_eval!(ũ_buf, sources, stoklets, xcm, θcm, f, Ω; eps=eps)
+    suspension_velocity_eval!(ũ_buf, sources, stoklets, xcm, θcm, f, Ω; eps=eps, close=close, f̃_body=f̃)
     result .= pack(psh.(ũ_buf, Ref(Ω)))
   end
 
   û  = psh.(u_body, Ref(Ω))
-  F̃  = unpack(gmres(A!, pack(û)))
+  F̃  = unpack(gmres(A!, pack(û); reltol=gmrestol))
   return [fi ./ Ω.w for fi in ipsh.(F̃, Ref(Ω))]
 
 end
@@ -149,12 +172,14 @@ Preconditioned by independent single-body mobility solves (block-diagonal).
 - `F`     : vector of N vectors [Fx, Fy, T] (forces and torques)
 - `Ω`     : domain discretization (shared by all bodies)
 - `M`     : precomputed single-body mobility matrix (optional)
+- `close_eval`   : correct cross terms between nearby bodies with the closed form (ellipses and disks)
+- `close_radius` : near-target radius for close evaluation (see `CLOSE_RADIUS`)
 
 # Returns
 - `f` : vector of N force density tuples (fx, fy)
 - `U` : vector of N rigid body velocity vectors [Ux, Uy, ω]
 """
-function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e-6, gmrestol=1e-6, M=[], verbose=false)
+function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e-6, gmrestol=1e-6, M=[], verbose=false, close_eval=true, close_radius=CLOSE_RADIUS)
 
   N_body   = length(xcm)
   Nz  = length(Ω.z)
@@ -205,12 +230,15 @@ function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e
   sources  = zeros(Float64, 3, N_body * Nz)
   stoklets = zeros(Float64, 3, N_body * Nz)
 
+  # Closed-form maps for nearby bodies (geometry only)
+  close = close_eval ? close_eval_plan(xcm, θcm, Ω; close_radius=close_radius) : nothing
+
   function matvec!(result, v)
     f̃, U = unpack(v)
     f = [ipsh(f̃[i], Ω) ./ Ω.w for i in 1 : N_body]
 
     # S·f: self via spectral (inside FMM call), cross via FMM
-    suspension_velocity_eval!(u_buf, sources, stoklets, xcm, θcm, f, Ω; eps=eps)
+    suspension_velocity_eval!(u_buf, sources, stoklets, xcm, θcm, f, Ω; eps=eps, close=close, f̃_body=f̃)
 
     # Subtract A·U: both u_buf and U are body-frame
     for i in 1 : N_body
