@@ -1,17 +1,17 @@
 using ProjectedSphericalHarmonics
+using Test
 
-function print_error(label, value, tol1=1e-6, tol2=1e-8)
-  if value > tol1
-      printstyled("$label$value\n"; color=:red)
-  elseif value > tol2
-      printstyled("$label$value\n"; color=:yellow)
-  else
-      printstyled("$label$value\n"; color=:green)
-  end
+"Print `label` and `value`, and record a test that `value ≤ tol`."
+function check(label, value, tol)
+  pass = value ≤ tol
+  printstyled("$label$value  (tol $tol)\n"; color = pass ? :green : :red)
+  @test value ≤ tol
 end
 
-include("test_integral.jl")
-include("test_differential.jl")
-include("test_domain.jl")
-include("test_stokes_mobility.jl")
-include("test_close_eval.jl")
+@testset "ProjectedSphericalHarmonics" begin
+  @testset "Integral operators" include("test_integral.jl")
+  @testset "Differential operators" include("test_differential.jl")
+  @testset "Domains" include("test_domain.jl")
+  @testset "Stokes mobility" include("test_stokes_mobility.jl")
+  @testset "Close evaluation" include("test_close_eval.jl")
+end

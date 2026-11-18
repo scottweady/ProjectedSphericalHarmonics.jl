@@ -34,7 +34,7 @@ for r in (1.005, 1.05, 2.0)
     global err = max(err, Float64(abs(G[l + 1, μ + 1] - exact) / abs(exact)))
   end
 end
-print_error("  Radial factor vs BigFloat series: ", err, 1e-10, 1e-12)
+check("  Radial factor vs BigFloat series: ", err, 1e-10)
 
 # ── Cross velocity vs upsampled direct sum ───────────────────────────────────
 
@@ -99,7 +99,7 @@ for (ratio, gap) in ((1.0, 0.01), (4.0, 0.01))
   u_nat = ellipse_direct(a, b, ĉ, D, M + 1, 2M + 1, targets[near])
   scale = maximum(abs, u_ref)
 
-  print_error("  Cross velocity a/b = $ratio, gap = $gap (closed form): ", maximum(abs, u_close .- u_ref) / scale, 1e-8, 1e-10)
+  check("  Cross velocity a/b = $ratio, gap = $gap (closed form): ", maximum(abs, u_close .- u_ref) / scale, 1e-9)
   println("    (native node quadrature: $(maximum(abs, u_nat .- u_ref) / scale))")
 
 end
@@ -128,7 +128,7 @@ u_ref = (vec(real.(u_self[1])) .+ u12x, vec(real.(u_self[2])) .+ u12y)
 
 e(u) = maximum(abs, vcat(vec(real.(u[2][1])) .- u_ref[1], vec(real.(u[2][2])) .- u_ref[2])) /
        maximum(abs, vcat(u_ref...))
-print_error("  suspension_velocity_eval, ellipse pair at gap 0.05 (closed form): ", e(u_close), 1e-8, 1e-10)
+check("  suspension_velocity_eval, ellipse pair at gap 0.05 (closed form): ", e(u_close), 1e-9)
 println("    (native node quadrature: $(e(u_native)))")
 
 # ── Mobility solve: closed form and native agree for well-separated bodies ───
@@ -140,14 +140,14 @@ uinf(z) = (imag.(z), zero(real.(z)))
 F = [[1.0, 0.5, 0.1], [-0.3, 0.2, 0.0]]
 _, U_close  = suspension_mobility_solve(xcm, θcm, uinf, nothing, F, D; eps=1e-12, gmrestol=1e-12)
 _, U_native = suspension_mobility_solve(xcm, θcm, uinf, nothing, F, D; eps=1e-12, gmrestol=1e-12, close_eval=false)
-print_error("  Mobility solve, separated disks, closed form vs native: ", maximum(maximum.(abs, U_close .- U_native)))
+check("  Mobility solve, separated disks, closed form vs native: ", maximum(maximum.(abs, U_close .- U_native)), 1e-12)
 
 # At gap 1 the plan is not empty, but node quadrature is still accurate
 xcm = [0.0 + 0.0im, 3.0 * cis(0.7)]
-@assert !isempty(PSH.close_eval_plan(xcm, θcm, D))
+@test !isempty(PSH.close_eval_plan(xcm, θcm, D))
 _, U_close  = suspension_mobility_solve(xcm, θcm, uinf, nothing, F, D; eps=1e-12, gmrestol=1e-12)
 _, U_native = suspension_mobility_solve(xcm, θcm, uinf, nothing, F, D; eps=1e-12, gmrestol=1e-12, close_eval=false)
-print_error("  Mobility solve, disks at gap 1, closed form vs native: ", maximum(maximum.(abs, U_close .- U_native)))
+check("  Mobility solve, disks at gap 1, closed form vs native: ", maximum(maximum.(abs, U_close .- U_native)), 1e-12)
 
 # ── Self operator: Fourier length chosen by decay (no aliasing for elongated ellipses) ──
 
@@ -161,4 +161,4 @@ for M in (8, 16, 24)
     global err = max(err, maximum(abs, Ω.K̂_G[i, j] - K))
   end
 end
-print_error("  Ellipse a/b = 10 self operator vs Nθ = 2^15: ", err, 1e-10, 1e-13)
+check("  Ellipse a/b = 10 self operator vs Nθ = 2^15: ", err, 1e-13)

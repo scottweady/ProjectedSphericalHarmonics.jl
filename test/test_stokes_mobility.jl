@@ -19,7 +19,7 @@ f_sol, U_sol = suspension_mobility_solve(xcm, zeros(length(xcm)), uinf, nothing,
 uinf1 = uinf(D.z)
 U_ref, ω_ref = stokes_mobility_solve(uinf1, nothing, F[1], D)
 err = maximum([abs(U_sol[1][1] - U_ref[1]), abs(U_sol[1][2] - U_ref[2]), abs(U_sol[1][3] - ω_ref)])
-print_error("  N=1 direct mobility solve vs fmm solve: ", err)
+check("  N=1 direct mobility solve vs fmm solve: ", err, 1e-7)
 
 # ── Test 2: N=2, non-zero orientations, rigid-body background flow ────────────
 # Same exact solution as Test 2 (f=0, U = uinf), but with non-zero θcm.
@@ -38,5 +38,5 @@ for i in 1:2
   Ux_exact = U0 - ω0 * imag(xcm3[i])
   Uy_exact = V0 + ω0 * real(xcm3[i])
   err_i = maximum([abs(U3[i][1] - Ux_exact), abs(U3[i][2] - Uy_exact), abs(U3[i][3] - ω0)])
-  print_error("  N=2 oriented mobility solve $i: ", err_i)
+  check("  N=2 oriented mobility solve $i: ", err_i, 1e-12)
 end

@@ -1,13 +1,14 @@
 # ProjectedSphericalHarmonics.jl
 
-A lightweight Julia library for solving integral equations on flat open surfaces using projected spherical harmonics.
+A Julia library of spectral solvers for integral equations on flat open surfaces using projected spherical harmonics, including Laplace, Stokes and biharmonic layer potentials, conformally mapped domains, and FMM-accelerated many-particle Stokes suspensions.
 
 Currently the code supports:
-- Laplace single layer and hypersingular operators
-- Stokes single layer operator with mobility solver
+- Laplace single layer and hypersingular operators, and their inverses
+- Stokes single layer operator with a single-body mobility solver
 - Bilaplace single layer
-- Differential operators (grad, div, lap)
-- Non-circular domains via conformal mapping singularity swapping
+- Differential operators (grad, div, lap, ∂n, ∂ζ, ∂ζ̄) and a Poisson solver
+- Non-circular domains: ellipses (affine map of the disk) and general shapes via conformal mapping singularity swapping
+- Many-particle Stokes suspensions: FMM-accelerated mobility and resistance solves (via [FMM3D](https://github.com/flatironinstitute/FMM3D)), with spectrally accurate close evaluation between nearby disks and ellipses
 
 ## Mathematical Background
 
@@ -101,3 +102,60 @@ u = Δ⁻¹(f, g, D)
 err = maximum(abs.(u .- 0.25 * (1 .- abs2.(ζ))))
 println("Max error in Δ⁻¹ for f = -1, g = 0: $err")
 ```
+
+### Non-circular domains
+
+The same operators work on ellipses and on domains given by a boundary curve. The curve is mapped conformally onto the disk.
+
+```julia
+using ProjectedSphericalHarmonics
+
+M = 32
+
+# Ellipse with semi-axes a = 1.5, b = 1
+Ω = ellipse(1.5, 1.0, M)
+
+# General domain from samples of its boundary curve
+θ = range(0, 2π, 128)[1:end-1]
+Ω = domain(1.5 .* cos.(θ) .+ im .* sin.(θ), M)
+
+# Force density on a plate translating with unit velocity in x, and the total drag
+f = 𝒮_st⁻¹((1.0, 0.0), Ω)
+println("Drag: ", integral(f[1], Ω))
+```
+
+### Stokes mobility
+
+`stokes_mobility_solve` finds the rigid-body velocity and angular velocity of a single body, given a background flow, an optional slip velocity, and the applied force and torque `[Fx, Fy, T]`.
+
+```julia
+D = disk(32)
+uinf(z) = (imag.(z), zero(real.(z)))   # shear flow ux = y
+
+U, ω = stokes_mobility_solve(uinf(D.z), nothing, [0.0, 0.0, 0.0], D)
+```
+
+`suspension_mobility_solve` solves the N-body problem with GMRES. Particle interactions are computed with FMM3D, using the single-body solve as a preconditioner. Every body shares one discretization `Ω`, and each body is placed at a center `xcm[i]` with orientation `θcm[i]`.
+
+```julia
+Ω   = ellipse(2.0, 0.5, 16)
+xcm = [0.0 + 0.0im, 1.05 + 0.3im]   # side by side, edge gap 0.05
+θcm = [π/2, -π/2]
+F   = [[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]]
+
+f, U = suspension_mobility_solve(xcm, θcm, uinf, nothing, F, Ω; eps=1e-10, gmrestol=1e-10)
+# U[i] = [Ux, Uy, ω] for body i (world frame); f[i] = (fx, fy) force density (body frame)
+```
+
+The node quadrature used by the FMM loses accuracy when a target point is closer to another body than the node spacing. For disks and ellipses, the cross term at such targets is replaced by a closed-form continuation of the single layer off the source body, which stays spectrally accurate at any separation. This is on by default. The keyword `close_radius` sets the distance at which it applies (see `CLOSE_RADIUS`), and `close_eval=false` turns it off. General conformally mapped domains always use node quadrature. `suspension_velocity_eval` (forces to velocities) and `suspension_velocity_solve` (velocities to forces) are also exported.
+
+More complete scripts are in [`examples/`](examples/), which has its own `Project.toml`.
+
+## Testing
+
+```julia
+using Pkg
+Pkg.test("ProjectedSphericalHarmonics")
+```
+
+Each check prints its error next to its tolerance and records a `@test`. The suite takes about a minute.
