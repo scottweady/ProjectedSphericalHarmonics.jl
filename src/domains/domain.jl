@@ -1,6 +1,17 @@
 
 using LinearAlgebra
 
+"""
+    Domain
+
+Discretization of a non-circular domain, the image of the unit disk under a map ``z = f(ζ)``:
+returned by `ellipse(a, b, Mℓ, Mₘ)` (an affine map) and `domain(γ, Mℓ, Mₘ)` (a conformal map).
+It wraps the `Disk` of the reference grid (its fields, such as `even` and `w`, are reachable from
+the `Domain`) and adds the mapped points `z`, the area weights `dz` (with the Jacobian of the map),
+and the operators of the domain as matrices in coefficient space. Functions on a `Domain` are
+sampled at `Ω.z`; the weight `Ω.w` is the disk's, ``\\sqrt{1 - |ζ|^2}``, which vanishes on the
+boundary like the square root of the distance to it.
+"""
 struct Domain
   D
   f
@@ -28,6 +39,12 @@ Discretization of the image of the unit disk under a conformal map.
 
 # Returns
 - Domain containing discretization information
+
+!!! warning "Experimental"
+    Conformally mapped domains are experimental: their accuracy and interface may change. The
+    curve must enclose the origin (this is not checked), convergence slows as the shape gets more
+    elongated, the operators are dense (moderate `M` only), and suspensions of such bodies have no
+    close evaluation. For ellipses, use `ellipse`.
 """
 function domain(γ, Mℓ::Int, Mₘ::Int)
 

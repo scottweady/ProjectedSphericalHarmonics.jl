@@ -68,6 +68,17 @@ function psh!(u::AbstractArray{ComplexF64}, D; parity=:even)
 end
 
 # Memory allocating psh
+"""
+    psh(u, D; parity=:even)
+
+PSH coefficients of the grid values `u` on `D` (a `Disk` or `Domain`), as a new array; `psh!`
+transforms in place. The coefficients have the shape of the grid: entry `[ℓ + 1, j]` is the
+coefficient of ``y_ℓ^m`` with ``m`` = `D.Mspan[j]`. Only the coefficients of the requested parity
+(`:even`, ℓ + m even, or `:odd`) are computed; the others are zero. Even PSH are polynomials in
+``x, y``; odd ones are ``w`` times polynomials. `u` may also be a number (a constant) or a tuple of
+arrays (transformed componentwise). The transform is exact for functions in the span of the
+retained modes: `psh(ipsh(û, D), D) == û` to rounding.
+"""
 function psh(u::AbstractArray, D; parity=:even)
   u = ComplexF64.(u)
   shp = size(u)
@@ -157,6 +168,14 @@ function ipsh!(u::AbstractArray{ComplexF64}, D; parity=:even)
 end
 
 # Memory allocating ipsh
+"""
+    ipsh(û, D; parity=:even)
+
+Grid values on `D` of the PSH expansion with coefficients `û` (laid out as by `psh`), as a new
+array; `ipsh!` transforms in place. Coefficients of the other parity are ignored. A tuple of
+coefficient arrays is transformed componentwise. `ipsh(û, D, r)` evaluates at the radii `r` instead
+(on the grid's angles), as `trace` does on the rim.
+"""
 function ipsh(û::AbstractArray, D; parity=:even)
   û = ComplexF64.(û)
   shp = size(û)

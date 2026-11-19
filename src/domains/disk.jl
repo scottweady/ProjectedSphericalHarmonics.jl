@@ -4,7 +4,22 @@ using SparseArrays
 
 include("../spectral/recurrences.jl")
 
-# Define line by line elements of disk struct
+"""
+    Disk
+
+Discretization of the unit disk, returned by `disk(Mℓ, Mₘ)`. The grid is `Mℓ + 1` Gauss–Legendre
+points in ``s = \\sqrt{1 - r^2}`` (clustered toward the rim) by `2Mₘ + 1` equispaced angles, stored
+as matrices of size `(Mℓ + 1, 2Mₘ + 1)`. Fields used outside the package:
+
+- `z` (alias of `ζ`): the grid points as complex numbers ``x + iy``; `r`, `θ`: polar coordinates
+- `dz` (alias of `dζ`): area weights, so `sum(u .* D.dz)` integrates `u` (see `integral`)
+- `w`: the weight ``w = \\sqrt{1 - |z|^2}``
+- `Mℓ`, `Mₘ`: maximum degree and order; `Lspan` (``0, …, Mℓ``) and `Mspan`
+  (``0, …, Mₘ, -Mₘ, …, -1``) label the rows and columns of a coefficient array
+- `even`, `odd`: masks of the coefficients with ``ℓ + m`` even or odd (and ``|m| ≤ ℓ``)
+
+The other fields are precomputed operator matrices in coefficient space.
+"""
 struct Disk
   shp
   Mℓ

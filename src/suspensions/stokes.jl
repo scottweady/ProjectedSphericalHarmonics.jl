@@ -193,6 +193,17 @@ function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body,
 
 end
 
+"""
+    suspension_velocity_eval(xcm, θcm, f_body, Ω; eps=1e-6, close_eval=true, close_radius=CLOSE_RADIUS, method=:ewald, S_self=nothing, μ_bottom=1.0, μ_top=0.0)
+
+Velocity at the collocation points of every body due to the force densities `f_body` of all of
+them: the forward map of `suspension_velocity_solve`. Body `i` is `Ω` rotated by `θcm[i]` and
+centered at `xcm[i]`; `f_body[i]` is a tuple `(fx, fy)` on `Ω`'s grid in the body frame, and the
+result is a vector of such tuples of velocities, also in each body's frame. Self terms are
+spectral (`𝒮_st`); cross terms are one fast sum (`method = :ewald` or `:fmm`, tolerance `eps`),
+corrected by the closed form at targets near another disk or ellipse unless `close_eval = false`.
+See `suspension_mobility_solve` for the other keywords.
+"""
 function suspension_velocity_eval(xcm, θcm, f_body::Vector, Ω; eps=1e-6, close_eval=true, close_radius=CLOSE_RADIUS, method=:ewald, S_self=nothing, μ_bottom=1.0, μ_top=0.0)
   close = close_eval ? close_eval_plan(xcm, θcm, Ω; close_radius=close_radius) : nothing
   N_body   = length(f_body)

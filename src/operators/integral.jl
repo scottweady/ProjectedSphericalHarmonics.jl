@@ -125,7 +125,7 @@ end
     
 Volume potential of 2D Laplacian
 
-  K(x) = -(1/2π) * log|x|
+  K(x) = (1/2π) * log|x|
 
 # Arguments
 - `u` : density function on the disk
@@ -154,6 +154,19 @@ function laplace2d_volume(u, D::Disk)
 
 end
 
+"""
+    𝒱(u, D::Disk)
+
+Volume potential of the 2D Laplacian on the unit disk,
+
+```math
+\\mathcal{V}[u](x) = \\frac{1}{2\\pi} \\int_D \\log|x - y|\\, u(y)\\, dy,
+```
+
+so that ``Δ\\mathcal{V}[u] = u`` and `𝒱(1, D)` ``= (|x|^2 - 1)/4``. A dense direct sum over the grid
+with the singularity subtracted (``O(N^2)`` in the number of grid points `N`); accurate to about
+the quadrature error of a log singularity on the grid, not spectrally.
+"""
 𝒱(u, D::Disk) = laplace2d_volume(u, D)
 
 """
@@ -189,6 +202,18 @@ function bilaplace2d_volume(u, D::Disk; κ=0)
 
 end
 
+"""
+    ℬ(u, D::Disk; κ=0)
+
+Volume potential of the 2D bilaplacian on the unit disk,
+
+```math
+\\mathcal{B}[u](x) = \\frac{1}{8\\pi} \\int_D |x - y|^2 \\left(\\log|x - y| - 1 + κ\\right) u(y)\\, dy,
+```
+
+so that ``Δ^2 \\mathcal{B}[u] = u``; `κ` adds a multiple of the biharmonic ``\\int |x - y|^2 u``. A
+dense direct sum over the grid (``O(N^2)``), algebraically accurate (the kernel is continuous).
+"""
 ℬ(u, D::Disk; κ=0) = bilaplace2d_volume(u, D; κ=κ)
 
 """
@@ -213,6 +238,18 @@ function bilaplace3d_single_layer(u, D::Disk)
   return 0.5 * (abs2.(ζ) .* 𝒮(u, D) - ζ .* 𝒮(conj.(ζ) .* u, D) - conj.(ζ) .* 𝒮(ζ .* u, D) + 𝒮(abs2.(ζ) .* u, D))
 end
 
+"""
+    𝒯(u, D::Disk)
+
+Single layer of the 3D bilaplacian on the unit disk,
+
+```math
+\\mathcal{T}[u](x) = \\frac{1}{8\\pi} \\int_D |x - y|\\, u(y)\\, dy,
+```
+
+computed spectrally from four applications of `𝒮` (``|x - y| = |x - y|^2/|x - y|``). Like `𝒮`, it
+expects a density with the ``1/w`` edge behavior.
+"""
 𝒯(u, D::Disk) = bilaplace3d_single_layer(u, D)
 
 """
@@ -237,6 +274,50 @@ end
 @wrap_operator 𝒮⁻¹ laplace3d_single_layer_inverse!
 @wrap_operator 𝒩 laplace3d_hypersingular!
 @wrap_operator 𝒩⁻¹ laplace3d_hypersingular_inverse!
+
+"""
+    𝒮(u, Ω)
+
+Single layer potential of the 3D Laplacian on the disk or a `Domain` `Ω`, evaluated on `Ω`,
+
+```math
+\\mathcal{S}[u](x) = \\frac{1}{4\\pi} \\int_Ω \\frac{u(y)}{|x - y|}\\, dy.
+```
+
+`u` is a density of the form ``g/w`` with ``g`` smooth, the edge behavior of solutions of
+first-kind equations on an open surface; `g = u .* w` is expanded in even PSH. On the unit disk
+these are eigenfunctions, ``\\mathcal{S}[y_ℓ^m/w] = (λ_ℓ^m/4)\\, y_ℓ^m`` (`λlm`), so `𝒮` is diagonal
+in coefficient space; on a `Domain` it is a sparse (`ellipse`) or dense (`domain`) matrix there.
+`u` may be a number (a constant density).
+"""
+𝒮
+
+"""
+    𝒮⁻¹(f, Ω)
+
+Inverse of `𝒮`: the density ``u`` with ``\\mathcal{S}[u] = f`` on `Ω`, for smooth `f`. The result
+has the ``1/w`` edge singularity: on the unit disk `𝒮⁻¹(1, D)` is ``4/(π w)``. `f` may be a number.
+"""
+𝒮⁻¹
+
+"""
+    𝒩(u, Ω)
+
+Hypersingular operator of the 3D Laplacian on the disk or a `Domain` `Ω` (the normal derivative
+of the double layer potential, kernel ``1/(4π|x - y|^3)`` in the finite-part sense). `u` is a
+density vanishing like ``w`` at the edge (``w`` times a smooth function), expanded in odd PSH;
+on the unit disk these are eigenfunctions, ``\\mathcal{N}[y_ℓ^m] = -y_ℓ^m/(λ_ℓ^m w)`` for ``ℓ + m``
+odd. Returns a smooth function. `u` may be a number.
+"""
+𝒩
+
+"""
+    𝒩⁻¹(f, Ω)
+
+Inverse of `𝒩`: the density ``u`` (vanishing like ``w`` at the edge) with ``\\mathcal{N}[u] = f`` on
+`Ω`, for smooth `f`. `f` may be a number.
+"""
+𝒩⁻¹
 
 """
 

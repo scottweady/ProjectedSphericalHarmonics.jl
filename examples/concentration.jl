@@ -29,7 +29,7 @@ for (nβ, β) in enumerate(βspan)
   function L̂!(b̂, σ̂)
     σ̂ = reshape(σ̂, size(D.ζ))
     σ̂w = psh(ipsh(σ̂, D) .* D.w, D)
-    b̂ .= vec(σ̂ + 2β * D.Ŝ .* σ̂w)
+    b̂ .= vec(σ̂ + 2β * D.K̂_S .* σ̂w)
   end
 
   # Right-hand side in coefficient space
