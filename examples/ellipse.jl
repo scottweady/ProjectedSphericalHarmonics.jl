@@ -1,6 +1,5 @@
 using SpecialFunctions: loggamma, ellipe, ellipk
 using ProjectedSphericalHarmonics
-using Plots
 
 # Resolution
 M = 32
