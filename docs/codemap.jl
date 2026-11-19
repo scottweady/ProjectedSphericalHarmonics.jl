@@ -121,6 +121,11 @@ const SETTINGS = [
     (id="mobsolve", label="Mobility solve", group="Stokes", base=false, parent="disk", schemes=ALL,
      about="stokes_mobility_solve: the velocity and angular velocity of one body in a shear flow, with a slip velocity and an applied force and torque",
      run=:(stokes_mobility_solve(shear(Ω.z), (0.1 .* ones(size(Ω.z)), zeros(size(Ω.z))), [1.0, 0.0, 0.1], Ω))),
+    (id="normal", label="Normal forces", group="Stokes", base=false, parent="disk", schemes=ALL,
+     about="forces out of the plane in free space: 𝒮_st and 𝒮_st⁻¹ of 3-tuples (fx, fy, fz) with μ, stokes_normal_mobility_matrix, and a six-component stokes_mobility_solve",
+     run=:(let x = real.(Ω.z), y = imag.(Ω.z)
+               f = 𝒮_st⁻¹((1.0, 0.0, y), Ω; μ=1.0); 𝒮_st(f, Ω; μ=1.0)
+               stokes_mobility_solve((shear(Ω.z)..., x), nothing, [1.0, 0.0, 1.0, 0.2, 0.0, 0.1], Ω; μ=1.0) end)),
     (id="offbody", label="Off-body velocity", group="Stokes", base=false, parent="disk", schemes=ALL,
      about="𝒮_st(tgt, f, Ω): the Stokes single layer at points outside the body, by direct quadrature",
      run=:(𝒮_st([3.0 + 0.0im, 2.0 + 2.0im], (ones(ComplexF64, size(Ω.z)), zeros(ComplexF64, size(Ω.z))), Ω))),

@@ -20,14 +20,17 @@ trace(u::NTuple{N}, Ω) where N = map(x -> trace(x, Ω), u)
 Integrate function on the domain
 
 # Arguments
-- `u` : array of function values
+- `u` : array of function values, a number (a constant), or a tuple of these (a vector field)
 - `Ω` : domain discretization
 
 # Returns
-- integral of u over Ω
+- integral of u over Ω; for a tuple, the tuple of the integrals of its components (e.g. the force
+  `(Fx, Fy)` of a force density `(fx, fy)`)
 """
 integral(u, Ω::Disk)   = sum(u .* Ω.dz)
 integral(u, Ω::Domain) = sum(u .* Ω.dz)
+integral(u::Tuple, Ω::Disk)   = map(c -> integral(c, Ω), u)
+integral(u::Tuple, Ω::Domain) = map(c -> integral(c, Ω), u)
 
 """
     apply(M, û, Ω; parity=:even)

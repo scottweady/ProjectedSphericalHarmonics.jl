@@ -103,3 +103,27 @@ for method in (:ewald, :fmm)
   check("  S_self matrix vs per-body direct subtraction ($method): ", err5, 1e-10)
 end
 @test_throws DimensionMismatch suspension_velocity_eval(xcm5, θcm5, f5, D; S_self=zeros(2, 2))
+
+# ── Test 6: normal (out-of-plane) forces, free space ─────────────────────────
+# Classical free-space results for a unit disk: broadside drag 16μ, tilting torque 32μ/3. The
+# in-plane part of a 3-tuple is the 2-tuple operator with μ_bottom = μ_top = μ.
+
+μn = 1.5
+Mn = stokes_normal_mobility_matrix(D; μ=μn)
+check("  normal resistance of a disk, diag(16, 32/3, 32/3)μ: ", maximum(abs.(Mn .- μn .* [16 0 0; 0 32/3 0; 0 0 32/3])), 1e-9)
+
+uz = real.(D.z) .* imag.(D.z) .+ 1
+f3 = 𝒮_st⁻¹((1.0, 0.0, uz), D; μ=μn)
+f2 = 𝒮_st⁻¹((1.0, 0.0), D; μ_bottom=μn, μ_top=μn)
+@test f3[1] == f2[1] && f3[2] == f2[2]
+check("  normal velocity round trip 𝒮_st(𝒮_st⁻¹(u)): ", maximum(abs.(𝒮_st(f3, D; μ=μn)[3] .- uz)), 1e-12)
+
+Usd, Ωsd = stokes_mobility_solve((0.0, 0.0, 0.0), nothing, [0.0, 0.0, 1.0, 0.5, 0.0, 0.0], D; μ=μn)
+check("  sedimenting, tilting disk Uz = Fz/16μ, Ωx = 3Tx/32μ: ", max(abs(Usd[3] - 1 / (16μn)), abs(Ωsd[1] - 0.5 * 3 / (32μn))), 1e-10)
+U3d, ω3d = stokes_mobility_solve(uinf(D.z), nothing, [0.2, -0.1, 0.3], D; μ_bottom=μn, μ_top=μn)
+U6d, Ω6d = stokes_mobility_solve((uinf(D.z)..., 0.0), nothing, [0.2, -0.1, 0.0, 0.0, 0.0, 0.3], D; μ=μn)
+@test (U6d[1], U6d[2], Ω6d[3]) == (U3d[1], U3d[2], ω3d)
+
+@test_throws ArgumentError 𝒮_st((1.0, 0.0, 0.0), D; μ_bottom=1.0)
+@test_throws ArgumentError stokes_mobility_solve((0.0, 0.0, 0.0), nothing, zeros(6), D; μ_top=1.0)
+@test_throws ArgumentError stokes_mobility_solve(uinf(D.z), nothing, zeros(3), D; μ=1.0)

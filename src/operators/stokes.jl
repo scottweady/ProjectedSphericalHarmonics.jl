@@ -84,6 +84,75 @@ function 𝒮_st⁻¹(u::Tuple, Ω; μ_bottom=1.0, μ_top=0.0)
   
 end
 
+# ---- Normal (out-of-plane) forces: free space only ------------------------------------------------
+# On the plane z = 0 the 3D Stokeslet has G_xz = G_yz = 0, so a normal force density f_z drives only
+# the normal velocity, with G_zz = 1/(8πμ|r|): u_z = 𝒮[f_z]/(2μ), the Laplace single layer. In a
+# half-space or between two fluids the plane is an interface that a normal force would deform, so
+# the normal problem is set up for one fluid of viscosity μ above and below.
+
+_as_field(c, Ω) = c isa Number ? fill(ComplexF64(c), size(Ω.z)) : c
+
+function _free_space_only(μ_bottom, μ_top)
+  (μ_bottom === nothing && μ_top === nothing) && return nothing
+  throw(ArgumentError("forces with a normal component are for free space only (one fluid above and below " *
+                      "the plane): pass its viscosity as μ instead of μ_bottom and μ_top"))
+end
+
+"""
+    𝒮_st(f::NTuple{3}, Ω; μ=1.0)
+
+Stokes single layer of a force density with a normal component, `f = (fx, fy, fz)`, in free space:
+one fluid of viscosity `μ` above and below the plane. Returns `(ux, uy, uz)`. The in-plane and
+normal parts decouple on the plane: `(ux, uy)` is `𝒮_st((fx, fy), Ω; μ_bottom=μ, μ_top=μ)`, and
+
+    uz = 𝒮[fz] / (2μ)      (G_zz = 1/(8πμ|r|), the Laplace single layer `𝒮`).
+
+The normal problem is not defined in a half-space or between two fluids (a normal force would
+deform the interface), so `μ_bottom` and `μ_top` are rejected here. Components may be numbers.
+"""
+function 𝒮_st(f::NTuple{3,Any}, Ω; μ=1.0, μ_bottom=nothing, μ_top=nothing)
+  _free_space_only(μ_bottom, μ_top)
+  fx, fy, fz = (_as_field(c, Ω) for c in f)
+  ux, uy = 𝒮_st((fx, fy), Ω; μ_bottom=μ, μ_top=μ)
+  return ux, uy, 𝒮(fz, Ω) ./ (2μ)
+end
+
+"""
+    𝒮_st⁻¹(u::NTuple{3}, Ω; μ=1.0)
+
+Inverse of `𝒮_st(f::NTuple{3}, Ω; μ)`: the force density `(fx, fy, fz)` that produces the
+velocity `u = (ux, uy, uz)` on `Ω` in free space (viscosity `μ`). The normal part is
+`fz = 2μ 𝒮⁻¹[uz]`; like the in-plane part, it has the ``1/w`` edge singularity. Components may be
+numbers.
+"""
+function 𝒮_st⁻¹(u::NTuple{3,Any}, Ω; μ=1.0, μ_bottom=nothing, μ_top=nothing)
+  _free_space_only(μ_bottom, μ_top)
+  ux, uy, uz = (_as_field(c, Ω) for c in u)
+  fx, fy = 𝒮_st⁻¹((ux, uy), Ω; μ_bottom=μ, μ_top=μ)
+  return fx, fy, (2μ) .* 𝒮⁻¹(uz, Ω)
+end
+
+"""
+    stokes_normal_mobility_matrix(Ω; μ=1.0)
+
+The 3 × 3 matrix of the out-of-plane rigid motions of a body in free space (viscosity `μ`):
+entry `[i, k]` is the generalized force `k` (``F_z``, ``T_x = \\int y f_z``, ``T_y = -\\int x f_z``)
+of the motion `i` (translation ``U_z``, rotations ``Ω_x``, ``Ω_y``, with ``u_z = U_z + Ω_x y - Ω_y x``),
+the counterpart of `stokes_mobility_matrix` for the normal direction. For the unit disk it is
+`diag(16, 32/3, 32/3) μ`.
+"""
+function stokes_normal_mobility_matrix(Ω; μ=1.0)
+  x, y = real.(Ω.z), imag.(Ω.z)
+  M = zeros(ComplexF64, 3, 3)
+  for (i, e) in enumerate((1.0, y, -x))
+    fz = (2μ) .* 𝒮⁻¹(e, Ω)
+    M[i, 1] = integral(fz, Ω)
+    M[i, 2] = integral(y .* fz, Ω)
+    M[i, 3] = integral(-x .* fz, Ω)
+  end
+  return M
+end
+
 """
     stokes_mobility_matrix(Ω; μ_bottom=1.0, μ_top=0.0)
 
@@ -135,8 +204,24 @@ Solve for the velocity and angular velocity of a domain Ω in in-plane Stokes fl
 
 # Returns
 - Tuple (U, ω) where U is the velocity vector and ω is the angular velocity
+
+# Normal forces (free space)
+With `F = [Fx, Fy, Fz, Tx, Ty, Tz]` (six components), the body also moves out of the plane, in
+free space with one fluid of viscosity `μ` (keyword, default 1.0; `μ_bottom` and `μ_top` are
+rejected). `uinf` and `uslip` are then tuples `(ux, uy, uz)`, and the result is
+`(Ux, Uy, Uz), (Ωx, Ωy, Ωz)`. The in-plane and normal problems decouple; `M` is the in-plane
+matrix (computed with `μ_bottom = μ_top = μ`) and `Mn` the normal one
+(`stokes_normal_mobility_matrix`), both computed here if not given.
 """
-function stokes_mobility_solve(uinf, uslip, F, Ω; M=[], μ_bottom=1.0, μ_top=0.0)
+function stokes_mobility_solve(uinf, uslip, F, Ω; M=[], Mn=[], μ=nothing, μ_bottom=nothing, μ_top=nothing)
+
+  if length(F) == 6
+    return _stokes_mobility_solve6(uinf, uslip, F, Ω, M, Mn, something(μ, 1.0), μ_bottom, μ_top)
+  end
+  μ === nothing || throw(ArgumentError("μ is for forces with a normal component (F = [Fx, Fy, Fz, Tx, Ty, Tz]); " *
+                                       "for in-plane forces pass μ_bottom and μ_top"))
+  μ_bottom = something(μ_bottom, 1.0)
+  μ_top    = something(μ_top, 0.0)
 
   isempty(M) ? M = stokes_mobility_matrix(Ω; μ_bottom=μ_bottom, μ_top=μ_top) : nothing
 
@@ -153,6 +238,27 @@ function stokes_mobility_solve(uinf, uslip, F, Ω; M=[], μ_bottom=1.0, μ_top=0
   U, ω = (R[1], R[2]), R[3]
 
   return U, ω
+
+end
+
+# Six degrees of freedom in free space: the in-plane problem (Fx, Fy, Tz) by the three-component
+# solve with μ_bottom = μ_top = μ, and the normal one (Fz, Tx, Ty) with the Laplace single layer
+function _stokes_mobility_solve6(uinf, uslip, F, Ω, M, Mn, μ, μ_bottom, μ_top)
+
+  _free_space_only(μ_bottom, μ_top)
+  (uinf isa Tuple && length(uinf) == 3 && (uslip === nothing || (uslip isa Tuple && length(uslip) == 3))) ||
+    throw(ArgumentError("with F = [Fx, Fy, Fz, Tx, Ty, Tz], uinf and uslip are tuples (ux, uy, uz) (uslip may be nothing)"))
+
+  U2, ωz = stokes_mobility_solve((uinf[1], uinf[2]), uslip === nothing ? nothing : (uslip[1], uslip[2]),
+                                 [F[1], F[2], F[6]], Ω; M=M, μ_bottom=μ, μ_top=μ)
+
+  isempty(Mn) && (Mn = stokes_normal_mobility_matrix(Ω; μ=μ))
+  x, y = real.(Ω.z), imag.(Ω.z)
+  uz = uslip === nothing ? _as_field(uinf[3], Ω) : _as_field(uinf[3], Ω) .- _as_field(uslip[3], Ω)
+  fz = (2μ) .* 𝒮⁻¹(uz, Ω)
+  R = Mn \ [F[3] + integral(fz, Ω); F[4] + integral(y .* fz, Ω); F[5] + integral(-x .* fz, Ω)]
+
+  return (U2[1], U2[2], R[1]), (R[2], R[3], ωz)
 
 end
 
@@ -203,4 +309,4 @@ end
 
 𝒮_st(tgt::AbstractArray{ComplexF64}, f::Tuple, Ω; μ_bottom=1.0, μ_top=0.0) = 𝒮_st.(tgt, Ref(f), Ref(Ω); μ_bottom=μ_bottom, μ_top=μ_top)
 
-export stokes_mobility_solve, stokes_mobility_matrix
+export stokes_mobility_solve, stokes_mobility_matrix, stokes_normal_mobility_matrix

@@ -34,3 +34,10 @@ u₁, u₂ = (-y, x)
 f₁, f₂ = 𝒮_st⁻¹((u₁, u₂), D)
 check("  Max error in 𝒮_st⁻¹ for f₁: ", maximum(abs.(f₁ - (-(4 / π) * y ./ w))), 1e-6)
 check("  Max error in 𝒮_st⁻¹ for f₂: ", maximum(abs.(f₂ - ((4 / π) * x ./ w))), 1e-6)
+
+# ── integral of a tuple: each component ──────────────────────────────────────
+let D = disk(16), x = real.(D.z), y = imag.(D.z)
+  I = integral((x .^ 2, 1.0, y .^ 2 .+ 1), D)
+  @test I isa Tuple && length(I) == 3
+  check("  integral of a tuple, componentwise (π/4, π, 5π/4): ", maximum(abs.(collect(I) .- [π/4, π, 5π/4])), 1e-13)
+end

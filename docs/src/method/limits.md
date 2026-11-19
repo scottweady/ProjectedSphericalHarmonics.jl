@@ -26,6 +26,10 @@ What the method does not do, and where it needs care.
 - `𝒮_st(tgt, f, Ω)` (the flow off a body) is direct quadrature over the grid, inaccurate within a few grid spacings
   of the body.
 
+**Normal forces**
+- The normal (out-of-plane) problem is defined in free space only (`μ`, one fluid above and below). It is
+  available for single bodies; the suspension solver is in-plane only.
+
 **Suspensions**
 - Every body is a copy of the same `Ω`. Bodies of different shapes or sizes need separate discretizations, which
   the solver does not support.

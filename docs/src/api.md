@@ -91,6 +91,7 @@ lap
 𝒮_st⁻¹
 stokes_mobility_matrix
 stokes_mobility_solve
+stokes_normal_mobility_matrix
 ```
 
 ## Suspensions

@@ -13,7 +13,7 @@ and open `docs/build/index.html`.
 
 Currently the code supports:
 - Laplace single layer and hypersingular operators, and their inverses
-- Stokes single layer operator with a single-body mobility solver
+- Stokes single layer operator with a single-body mobility solver, for in-plane forces and, in free space, normal forces (out of the plane)
 - Bilaplace single layer
 - Differential operators (grad, div, lap, ∂n, ∂ζ, ∂ζ̄) and a Poisson solver
 - Non-circular domains: ellipses (affine map of the disk) and, experimentally, general shapes via conformal mapping singularity swapping
@@ -148,6 +148,8 @@ Every Stokes function takes the keywords `μ_bottom` (default `1.0`) and `μ_top
 | Interface, μ₁ below and μ₂ above | `μ₁` | `μ₂` |
 
 A precomputed mobility matrix passed as `M` must use the same viscosities.
+
+In free space a body can also be pushed out of the plane: pass 3-tuples `(fx, fy, fz)` and `(ux, uy, uz)` to `𝒮_st` and `𝒮_st⁻¹`, or `F = [Fx, Fy, Fz, Tx, Ty, Tz]` to `stokes_mobility_solve`, with the fluid viscosity as `μ`. The normal part is the Laplace single layer, `uz = 𝒮[fz]/(2μ)`, and decouples from the in-plane part. Calls with 2-tuples and `F = [Fx, Fy, T]` are unchanged.
 
 ### Stokes mobility
 

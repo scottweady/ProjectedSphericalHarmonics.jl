@@ -153,6 +153,26 @@ U, ω = stokes_mobility_solve(uinf, nothing, [0.0, 0.0, 0.0], D)    # a free dis
 
 It builds the body's 3 × 3 mobility matrix (`stokes_mobility_matrix(Ω)`) each time unless you pass it as `M`.
 
+### Normal forces
+
+In free space (one fluid of viscosity `μ` above and below the plane) a body can also be pushed out of the
+plane. Pass 3-tuples `(fx, fy, fz)` and `(ux, uy, uz)` with the keyword `μ`. The normal part decouples from the
+in-plane part and is the Laplace single layer, ``u_z = \mathcal{S}[f_z]/(2\mu)``:
+
+```julia
+fx, fy, fz = 𝒮_st⁻¹((0.0, 0.0, 1.0), D; μ=1.0)       # a disk moving broadside at unit speed
+integral(fz, D)                                      # its drag: 16μ (free space)
+
+# six degrees of freedom: F = [Fx, Fy, Fz, Tx, Ty, Tz], uinf = (ux, uy, uz)
+U, Ω_rot = stokes_mobility_solve((0.0, 0.0, 0.0), nothing, [0, 0, 1.0, 0, 0, 0], D; μ=1.0)
+U[3]                                                 # sedimenting broadside: Uz = 1/16
+```
+
+With 2-tuples and three-component `F`, every function behaves as before. The normal problem is not defined in a
+half-space or between two fluids, because a normal force would deform the interface, so these calls reject
+`μ_bottom` and `μ_top`. `stokes_normal_mobility_matrix(Ω; μ)` is the 3 × 3 matrix of the out-of-plane motions
+(``U_z``, ``\Omega_x``, ``\Omega_y``). Suspensions are in-plane only for now.
+
 ## Suspensions
 
 `suspension_mobility_solve` solves the mobility problem of many bodies at once. Every body is a copy of one

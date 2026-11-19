@@ -66,3 +66,30 @@ which `stokes_mobility_matrix(Ω)` returns (``M`` below). By linearity,
 2. solves ``M\,(U, \omega) = F + F_\infty``.
 
 Each call costs one inverse, or four if `M` is not passed.
+
+## Normal forces
+
+On the plane ``z = 0`` the separation ``x - y`` has no ``z`` component, so the 3D Stokeslet's entries
+``G_{xz}`` and ``G_{yz}`` vanish there. A normal force density ``f_z`` therefore drives only the normal
+velocity, and an in-plane force only in-plane velocity. In free space, with one fluid of viscosity ``\mu_f``
+above and below,
+
+```math
+u_z(x) = \frac{1}{8\pi\mu_f} \int_\Omega \frac{f_z(y)}{|x - y|}\, dy = \frac{1}{2\mu_f}\, \mathcal{S}[f_z](x),
+```
+
+the Laplace single layer, so ``f_z = 2\mu_f\, \mathcal{S}^{-1}[u_z]`` has the same ``1/w`` edge behavior and
+the same spectral accuracy, on every domain. `𝒮_st` and `𝒮_st⁻¹` take 3-tuples for this, with the keyword `μ`
+(``= \mu_f``). Their in-plane part is the two-component operator with `μ_bottom = μ_top = μ`.
+
+A rigid body's out-of-plane motions are a translation ``U_z`` and two tilts, ``u_z = U_z + \Omega_x y - \Omega_y
+x``, with the force ``F_z = \int f_z`` and the torques ``T_x = \int y f_z`` and ``T_y = -\int x f_z``. Their
+``3 \times 3`` matrix is `stokes_normal_mobility_matrix(Ω; μ)`. For the unit disk it is ``\mathrm{diag}(16,
+32/3, 32/3)\,\mu_f``, the classical broadside drag and tilting torque, which the tests check. With six-component
+forces ``[F_x, F_y, F_z, T_x, T_y, T_z]`` and a 3-tuple background flow, `stokes_mobility_solve` solves the
+in-plane and normal problems separately and returns ``(U_x, U_y, U_z)`` and ``(\Omega_x, \Omega_y,
+\Omega_z)``.
+
+The decoupling needs the same fluid on both sides. In a half-space under a free surface, or at an interface
+between two fluids, the plane ``z = 0`` is the interface itself, and a normal force would deform it. So the normal
+problem is free space only: these calls take `μ` and reject `μ_bottom` and `μ_top`.
