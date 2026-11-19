@@ -9,12 +9,12 @@ is
 
     u(x) = Σ_{ℓ,m} Σ_{n even} Â_n f̃_ℓ^m ψ_ℓ^{m,n}(ξ),
 
-    ψ_ℓ^{m,n}(ξ) = (√π/4) χ_{m+n} (-1)^{(ℓ-m)/2} y_ℓ^m|_rim e^{i(m+n)ϑ} Γ((ℓ+μ+1)/2) F_ℓ^μ(r),
+    ψ_ℓ^{m,n}(ξ) = (√π/4) χ_{m+n} (-1)^{(ℓ-m)/2} y_ℓ^m|_rim e^{i(m+n)ϑ} Γ((ℓ+k+1)/2) F_ℓ^k(r),
 
-    F_ℓ^μ(r) = r^{-ℓ-1} / (Γ((μ-ℓ+1)/2) Γ(ℓ+3/2)) ₂F₁((ℓ+μ+1)/2, (ℓ-μ+1)/2; ℓ+3/2; 1/r²),
+    F_ℓ^k(r) = r^{-ℓ-1} / (Γ((k-ℓ+1)/2) Γ(ℓ+3/2)) ₂F₁((ℓ+k+1)/2, (ℓ-k+1)/2; ℓ+3/2; 1/r²),
 
-with μ = |m+n|, χ_k = 1 for k ≥ 0 and (-1)^k for k < 0, and Â_n the Fourier coefficients
-of A₀ (see `EllipseGeometry`). Terms with μ > ℓ do not vanish outside the disk.
+with k = |m+n|, χ_M = 1 for M ≥ 0 and (-1)^M for M < 0, and Â_n the Fourier coefficients
+of A₀ (see `EllipseGeometry`). Terms with k > ℓ do not vanish outside the disk.
 =#
 
 """
@@ -35,21 +35,21 @@ const CLOSE_RADIUS = 8.0
 # Projected spherical harmonic on the rim (ϱ = 0), in the convention of `ylm`
 _yrim(l, m) = sqrt(2) * Plm_norm(l, abs(m), 0.0)
 
-_χ(k) = k < 0 ? (-1)^k : 1
+_χ(M) = M < 0 ? (-1)^M : 1
 
 """
-    exterior_radial_table!(G, L, μmax, r)
+    exterior_radial_table!(G, L, kmax, r)
 
-Fill G[ℓ+1, μ+1] = Γ((ℓ+μ+1)/2) F_ℓ^μ(r) for ℓ ≤ L, μ ≤ μmax, ℓ - μ even (zero otherwise).
+Fill G[ℓ+1, k+1] = Γ((ℓ+k+1)/2) F_ℓ^k(r) for ℓ ≤ L, k ≤ kmax, ℓ - k even (zero otherwise).
 
 The ₂F₁ is evaluated through the quadratic transformation
 ₂F₁(a, b; a+b+½; 4w(1-w)) = ₂F₁(2a, 2b; a+b+½; w), w = (1 - x)/2, x = √(1 - 1/r²).
-For μ ≤ ℓ the transformed series has positive terms and w ≤ ½. For μ ≥ ℓ+2 it terminates
+For k ≤ ℓ the transformed series has positive terms and w ≤ ½. For k ≥ ℓ+2 it terminates
 and equals the normalized Gegenbauer polynomial C_N^{(ℓ+1)}(x)/C_N^{(ℓ+1)}(1),
-N = μ - ℓ - 1, computed for all μ in one pass of the three-term recurrence. A direct
-Float64 ₂F₁ is unusable for μ > ℓ (large parameters of opposite sign).
+N = k - ℓ - 1, computed for all k in one pass of the three-term recurrence. A direct
+Float64 ₂F₁ is unusable for k > ℓ (large parameters of opposite sign).
 """
-function exterior_radial_table!(G, L, μmax, r)
+function exterior_radial_table!(G, L, kmax, r)
 
   x  = sqrt(1 - 1 / r^2)
   w  = (1 - x) / 2
@@ -58,39 +58,39 @@ function exterior_radial_table!(G, L, μmax, r)
 
   for l in 0 : L
 
-    # Γ((ℓ+μ+1)/2) / (Γ((μ-ℓ+1)/2) Γ(ℓ+3/2)) r^{-ℓ-1}; (μ-ℓ+1)/2 may be a negative half-integer
+    # Γ((ℓ+k+1)/2) / (Γ((k-ℓ+1)/2) Γ(ℓ+3/2)) r^{-ℓ-1}; (k-ℓ+1)/2 may be a negative half-integer
     lg3 = loggamma(l + 1.5)
-    function prefactor(μ)
-      lg2, s2 = logabsgamma((μ - l + 1) / 2)
-      return s2 * exp(loggamma((l + μ + 1) / 2) - lg2 - lg3 - (l + 1) * lr)
+    function prefactor(k)
+      lg2, s2 = logabsgamma((k - l + 1) / 2)
+      return s2 * exp(loggamma((l + k + 1) / 2) - lg2 - lg3 - (l + 1) * lr)
     end
 
-    # μ ≤ ℓ: positive series in w
-    for μ in (l % 2) : 2 : min(l, μmax)
-      A, B, C = l + μ + 1, l - μ + 1, l + 1.5
+    # k ≤ ℓ: positive series in w
+    for k in (l % 2) : 2 : min(l, kmax)
+      A, B, C = l + k + 1, l - k + 1, l + 1.5
       s = t = 1.0
-      k = 0
+      j = 0
       while true
-        t *= (A + k) * (B + k) / ((C + k) * (k + 1)) * w
+        t *= (A + j) * (B + j) / ((C + j) * (j + 1)) * w
         s += t
-        k += 1
+        j += 1
         abs(t) < 1e-17 * s && break
       end
-      G[l + 1, μ + 1] = prefactor(μ) * s
+      G[l + 1, k + 1] = prefactor(k) * s
     end
 
-    # μ ≥ ℓ+2: R_k = C_k(x)/C_k(1), λ = ℓ+1,
-    # R_k = 2x(k+λ-1)/(k+2λ-1) R_{k-1} - (k-1)/(k+2λ-1) R_{k-2}, R_0 = 1, R_1 = x
+    # k ≥ ℓ+2: R_j = C_j(x)/C_j(1), λ = ℓ+1,
+    # R_j = 2x(j+λ-1)/(j+2λ-1) R_{j-1} - (j-1)/(j+2λ-1) R_{j-2}, R_0 = 1, R_1 = x
     λ = l + 1
-    k, Rkm2, Rkm1 = 1, 1.0, x
-    for μ in l + 2 : 2 : μmax
-      N = μ - l - 1
-      while k < N
-        k += 1
-        Rk = 2 * (k + λ - 1) / (k + 2λ - 1) * x * Rkm1 - (k - 1) / (k + 2λ - 1) * Rkm2
-        Rkm2, Rkm1 = Rkm1, Rk
+    j, Rjm2, Rjm1 = 1, 1.0, x
+    for k in l + 2 : 2 : kmax
+      N = k - l - 1
+      while j < N
+        j += 1
+        Rj = 2 * (j + λ - 1) / (j + 2λ - 1) * x * Rjm1 - (j - 1) / (j + 2λ - 1) * Rjm2
+        Rjm2, Rjm1 = Rjm1, Rj
       end
-      G[l + 1, μ + 1] = prefactor(μ) * Rkm1
+      G[l + 1, k + 1] = prefactor(k) * Rjm1
     end
 
   end
@@ -99,7 +99,7 @@ function exterior_radial_table!(G, L, μmax, r)
 
 end
 
-exterior_radial_table(L, μmax, r) = exterior_radial_table!(zeros(L + 1, μmax + 1), L, μmax, r)
+exterior_radial_table(L, kmax, r) = exterior_radial_table!(zeros(L + 1, kmax + 1), L, kmax, r)
 
 """
     exterior_map(geom, Ω, ξ)
@@ -121,7 +121,7 @@ function exterior_map(geom::EllipseGeometry, Ω, ξ::AbstractVector)
   ns, (Â11, Â12, Â22) = geom.ns, geom.Â
   L, Mₘ = Ω.Mℓ, Ω.Mₘ
   nmax = maximum(ns)
-  μmax = Mₘ + nmax
+  kmax = Mₘ + nmax
 
   CI = CartesianIndices(Ω.shp)
   modes = [(Ω.Lspan[CI[ci][1]], Ω.Mspan[CI[ci][2]]) for ci in Ω.idx_even]
@@ -133,24 +133,24 @@ function exterior_map(geom::EllipseGeometry, Ω, ξ::AbstractVector)
   Threads.@threads for t in 1 : Nt
 
     r, ϑ = abs(ξ[t]), angle(ξ[t])
-    G = exterior_radial_table(L, μmax, r)
+    G = exterior_radial_table(L, kmax, r)
 
-    # χ_M e^{iMϑ} for M = -μmax, …, μmax
-    E = [_χ(M) * cis(M * ϑ) for M in -μmax : μmax]
+    # χ_M e^{iMϑ} for M = -kmax, …, kmax
+    E = [_χ(M) * cis(M * ϑ) for M in -kmax : kmax]
 
-    for (k, (l, m)) in enumerate(modes)
+    for (p, (l, m)) in enumerate(modes)
       s11 = s12 = s22 = zero(ComplexF64)
       for (q, n) in enumerate(ns)
         M = m + n
-        ψ = E[M + μmax + 1] * G[l + 1, abs(M) + 1]
+        ψ = E[M + kmax + 1] * G[l + 1, abs(M) + 1]
         s11 += Â11[q] * ψ
         s12 += Â12[q] * ψ
         s22 += Â22[q] * ψ
       end
-      T[t, k]           = pre[k] * s11
-      T[t, Ne + k]      = pre[k] * s12
-      T[Nt + t, k]      = pre[k] * s12
-      T[Nt + t, Ne + k] = pre[k] * s22
+      T[t, p]           = pre[p] * s11
+      T[t, Ne + p]      = pre[p] * s12
+      T[Nt + t, p]      = pre[p] * s12
+      T[Nt + t, Ne + p] = pre[p] * s22
     end
 
   end

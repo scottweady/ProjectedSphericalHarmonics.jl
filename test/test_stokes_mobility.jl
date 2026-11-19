@@ -40,3 +40,26 @@ for i in 1:2
   err_i = maximum([abs(U3[i][1] - Ux_exact), abs(U3[i][2] - Uy_exact), abs(U3[i][3] - ω0)])
   check("  N=2 oriented mobility solve $i: ", err_i, 1e-12)
 end
+
+# ── Test 3: viscosity convention ─────────────────────────────────────────────
+# Unit disk, half-space (μ_bottom = 1, μ_top = 0): drag 16/3 and torque 16/3. Free space with
+# μ = 1 (μ_bottom = μ_top = 1)
+# recovers the classical edgewise-disk drag 32/3 μa and torque 32/3 μa³.
+
+M1 = stokes_mobility_matrix(D)
+check("  half-space disk drag (16/3): ", abs(M1[1,1] - 16/3), 1e-10)
+check("  half-space disk torque (16/3): ", abs(M1[3,3] - 16/3), 1e-10)
+
+M2 = stokes_mobility_matrix(D; μ_bottom=1.0, μ_top=1.0)
+check("  free-space disk drag (32/3): ", abs(M2[1,1] - 32/3), 1e-10)
+check("  free-space disk torque (32/3): ", abs(M2[3,3] - 32/3), 1e-10)
+
+# Force-driven N-body problem: velocities scale as 1/(μ_bottom + μ_top), explicit defaults match exactly
+F4 = [[1.0, 0.5, 0.1], [-0.3, 0.2, 0.0]]
+_, U_default = suspension_mobility_solve(xcm3, θcm3, nothing, nothing, F4, D; eps=1e-12, gmrestol=1e-12)
+_, U_mu1    = suspension_mobility_solve(xcm3, θcm3, nothing, nothing, F4, D; eps=1e-12, gmrestol=1e-12, μ_bottom=1.0, μ_top=0.0)
+_, U_mu2    = suspension_mobility_solve(xcm3, θcm3, nothing, nothing, F4, D; eps=1e-12, gmrestol=1e-12, μ_bottom=1.0, μ_top=1.0)
+@test U_mu1 == U_default
+err_scale = maximum(abs.(vcat(U_mu2...) .- vcat(U_default...) ./ 2))
+check("  N=2 mobility solve scales as 1/(μ_bottom + μ_top): ", err_scale, 1e-10)
+

@@ -124,6 +124,22 @@ f = 𝒮_st⁻¹((1.0, 0.0), Ω)
 println("Drag: ", integral(f[1], Ω))
 ```
 
+### Viscosity convention
+
+The Stokes operators model in-plane flow driven by forces in the plane z = 0, which separates a fluid of viscosity `μ_bottom` below from one of viscosity `μ_top` above. The Green's function is
+
+$$G(\mathbf{r}) = \frac{1}{4\pi(\mu_\mathrm{bottom} + \mu_\mathrm{top})}\left(\frac{\mathbf{I}}{|\mathbf{r}|} + \frac{\mathbf{r}\mathbf{r}^T}{|\mathbf{r}|^3}\right).$$
+
+Every Stokes function takes the keywords `μ_bottom` (default `1.0`) and `μ_top` (default `0.0`):
+
+| Setting | `μ_bottom` | `μ_top` |
+|---|---|---|
+| Half-space under a stress-free surface (default) | `μ` | `0` |
+| Free space, viscosity μ | `μ` | `μ` |
+| Interface, μ₁ below and μ₂ above | `μ₁` | `μ₂` |
+
+A precomputed mobility matrix passed as `M` must use the same viscosities.
+
 ### Stokes mobility
 
 `stokes_mobility_solve` finds the rigid-body velocity and angular velocity of a single body, given a background flow, an optional slip velocity, and the applied force and torque `[Fx, Fy, T]`.

@@ -10,17 +10,17 @@ Random.seed!(1)
 
 # ── Radial factor vs BigFloat series ─────────────────────────────────────────
 
-function radial_big(l, μ, r)
+function radial_big(l, k, r)
   setprecision(BigFloat, 512) do
-    A, B, C, z = big(l + μ + 1) / 2, big(l - μ + 1) / 2, big(l) + big(3) / 2, 1 / big(r)^2
+    A, B, C, z = big(l + k + 1) / 2, big(l - k + 1) / 2, big(l) + big(3) / 2, 1 / big(r)^2
     s = t = one(BigFloat)
-    k = 0
-    while k < 10 || abs(t) > big(10.0)^-40 * abs(s)
-      t *= (A + k) * (B + k) / ((C + k) * (k + 1)) * z
+    j = 0
+    while j < 10 || abs(t) > big(10.0)^-40 * abs(s)
+      t *= (A + j) * (B + j) / ((C + j) * (j + 1)) * z
       s += t
-      k += 1
+      j += 1
     end
-    lg2, s2 = logabsgamma((μ - l + 1) / big(2))
+    lg2, s2 = logabsgamma((k - l + 1) / big(2))
     return s2 * exp(loggamma(A) - lg2 - loggamma(C) - (l + 1) * log(big(r))) * s
   end
 end
@@ -28,10 +28,10 @@ end
 err = 0.0
 for r in (1.005, 1.05, 2.0)
   G = PSH.exterior_radial_table(16, 100, r)
-  for l in (0, 3, 16), μ in (l % 2) : 2 : 100
-    exact = radial_big(l, μ, r)
-    abs(exact) < 1e-8 && continue          # exact zeros (e.g. ℓ = 0, sin(μ arcsin(1/r)) = 0)
-    global err = max(err, Float64(abs(G[l + 1, μ + 1] - exact) / abs(exact)))
+  for l in (0, 3, 16), k in (l % 2) : 2 : 100
+    exact = radial_big(l, k, r)
+    abs(exact) < 1e-8 && continue          # exact zeros (e.g. ℓ = 0, sin(k arcsin(1/r)) = 0)
+    global err = max(err, Float64(abs(G[l + 1, k + 1] - exact) / abs(exact)))
   end
 end
 check("  Radial factor vs BigFloat series: ", err, 1e-10)
