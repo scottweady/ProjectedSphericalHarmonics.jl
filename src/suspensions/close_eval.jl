@@ -229,18 +229,52 @@ function close_eval_correct!(pot, sources, stoklets, plan, f̃_body, θcm, Ω)
   Nz, even = length(Ω.z), Ω.idx_even
   ĉ = Dict(j => vcat(vec(f̃_body[j][1])[even], vec(f̃_body[j][2])[even]) for j in unique(p.j for p in plan))
 
-  for p in plan
+  # Pairs in parallel, each into its own buffer (pairs sharing a target body would race on
+  # `pot`), then added serially. Plain loops rather than BLAS/st3ddir: those run their own
+  # threads, which contend with Julia's.
+  corr = Vector{Matrix{Float64}}(undef, length(plan))
+  Threads.@threads for q in eachindex(plan)
+    p  = plan[q]
     nt = length(p.tidx)
-    v  = p.T * ĉ[p.j]
-    vx, vy = rotate(real.(v[1:nt]), real.(v[nt+1:end]), θcm[p.j])
+    T, c = p.T, ĉ[p.j]
 
-    # Node-quadrature contribution of body j, exactly as the FMM sees it
+    v = zeros(ComplexF64, 2nt)
+    @inbounds for k in axes(T, 2)
+      ck = c[k]
+      @simd for r in 1 : 2nt
+        v[r] = muladd(T[r, k], ck, v[r])
+      end
+    end
+    cθ, sθ = cos(θcm[p.j]), sin(θcm[p.j])
+
+    out = Matrix{Float64}(undef, 2, nt)
+    bj0 = (p.j - 1) * Nz
+    @inbounds for (m, t) in enumerate(p.tidx)
+      it = (p.i - 1) * Nz + t
+      x1, x2 = sources[1, it], sources[2, it]
+
+      # Node-quadrature contribution of body j, exactly as the fast sum sees it: G f/(8π)
+      s1 = s2 = 0.0
+      @simd for k in 1 : Nz
+        jj = bj0 + k
+        rx, ry = x1 - sources[1, jj], x2 - sources[2, jj]
+        fx, fy = stoklets[1, jj], stoklets[2, jj]
+        ρi = 1 / sqrt(rx^2 + ry^2)
+        rf = (rx * fx + ry * fy) * ρi^3
+        s1 += fx * ρi + rx * rf
+        s2 += fy * ρi + ry * rf
+      end
+
+      vx, vy = real(v[m]), real(v[nt + m])
+      out[1, m] = (cθ * vx - sθ * vy) / 2 - s1 / 8π
+      out[2, m] = (sθ * vx + cθ * vy) / 2 - s2 / 8π
+    end
+    corr[q] = out
+  end
+
+  for (q, p) in enumerate(plan)
     bi = (p.i - 1) * Nz .+ p.tidx
-    bj = (p.j - 1) * Nz .+ (1 : Nz)
-    native = st3ddir(sources[:, bj], sources[:, bi]; stoklet=stoklets[:, bj], ppregt=1).pottarg
-
-    pot[1, bi] .+= vx ./ 2 .- native[1, :]
-    pot[2, bi] .+= vy ./ 2 .- native[2, :]
+    @views pot[1:2, bi] .+= corr[q]
   end
 
   return pot
