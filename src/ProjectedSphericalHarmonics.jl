@@ -88,4 +88,14 @@ export Δ⁻¹, gmres
 
 include("suspensions/stokes.jl")
 
+# FINUFFT's threaded FFTs cannot run under FFTW.jl's Julia-threads callback (installed when
+# Julia has more than one thread), so restore FFTW's own threading at load time
+function __init__()
+  if FFTW.fftw_provider == "fftw" && Threads.nthreads() > 1
+    FFTW.dlopen(FFTW.libfftw3); FFTW.dlopen(FFTW.libfftw3f)
+    ccall((:fftw_threads_set_callback, FFTW.libfftw3), Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), C_NULL, C_NULL)
+    ccall((:fftwf_threads_set_callback, FFTW.libfftw3f), Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), C_NULL, C_NULL)
+  end
+end
+
 end

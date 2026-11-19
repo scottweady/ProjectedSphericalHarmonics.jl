@@ -63,3 +63,29 @@ _, U_mu2    = suspension_mobility_solve(xcm3, θcm3, nothing, nothing, F4, D; ep
 err_scale = maximum(abs.(vcat(U_mu2...) .- vcat(U_default...) ./ 2))
 check("  N=2 mobility solve scales as 1/(μ_bottom + μ_top): ", err_scale, 1e-10)
 
+
+# ── Test 4: Ewald + NUFFT vs FMM3D ───────────────────────────────────────────
+
+using FMM3D: stfmm3d
+using Random: MersenneTwister
+
+rng  = MersenneTwister(3)
+xcm5 = [complex(3.0 * (k % 4), 3.0 * (k ÷ 4)) + 0.3 * complex(rand(rng) - 0.5, rand(rng) - 0.5) for k in 0:11]
+θcm5 = 2π .* rand(rng, length(xcm5))
+Nz   = length(D.z)
+src5 = ProjectedSphericalHarmonics.suspension_sources!(zeros(3, length(xcm5) * Nz), xcm5, θcm5, D)
+stk5 = zeros(3, size(src5, 2)); stk5[1:2, :] = randn(rng, 2, size(src5, 2))
+
+pot_fmm = stfmm3d(1e-13, src5; stoklet=stk5, ppreg=1).pot
+for tol in (1e-6, 1e-10)
+  E = ProjectedSphericalHarmonics.StokesEwald(src5; tol=tol)
+  pot_e = ProjectedSphericalHarmonics.stokes_ewald!(similar(src5), E, stk5)
+  # random-sign densities cancel, so the error relative to max |u| can exceed tol slightly
+  check("  Ewald vs FMM3D Stokeslet sum (tol $tol): ", maximum(abs.(pot_e[1:2, :] .- pot_fmm[1:2, :])) / maximum(abs.(pot_fmm[1:2, :])), 10tol)
+end
+
+F5 = [[randn(rng), randn(rng), 0.1randn(rng)] for _ in xcm5]
+_, U_ewald = suspension_mobility_solve(xcm5, θcm5, uinf, nothing, F5, D; eps=1e-10, gmrestol=1e-10)
+_, U_fmm   = suspension_mobility_solve(xcm5, θcm5, uinf, nothing, F5, D; eps=1e-10, gmrestol=1e-10, method=:fmm)
+check("  N=12 mobility solve, Ewald vs FMM: ", maximum(abs.(vcat(U_ewald...) .- vcat(U_fmm...))), 1e-8)
+@test_throws ArgumentError suspension_mobility_solve(xcm5, θcm5, uinf, nothing, F5, D; method=:direct)

@@ -5,18 +5,40 @@ rotate(ux, uy, θ) = (cos(θ) .* ux .- sin(θ) .* uy,
                      sin(θ) .* ux .+ cos(θ) .* uy)
 
 include("close_eval.jl")
+include("ewald.jl")
+
+"World-frame collocation points of every body, stacked as columns of `sources` (3 × N_body·Nz)."
+function suspension_sources!(sources, xcm, θcm, Ω)
+  Nz = length(Ω.z)
+  x, y = real.(vec(Ω.z)), imag.(vec(Ω.z))
+  for j in eachindex(xcm)
+    idx = (j-1)*Nz .+ (1:Nz)
+    rx, ry = rotate(x, y, θcm[j])
+    sources[1, idx] = real(xcm[j]) .+ rx
+    sources[2, idx] = imag(xcm[j]) .+ ry
+  end
+  return sources
+end
+
+"Plan for the cross-body sum: an `StokesEwald` for `method = :ewald`, `nothing` for `:fmm`."
+function suspension_fast_plan(method, sources, eps)
+  method === :ewald && return StokesEwald(sources; tol=eps)
+  method === :fmm   && return nothing
+  throw(ArgumentError("method must be :ewald or :fmm, got $(repr(method))"))
+end
 
 """
-    suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=1e-6, close=nothing, f̃_body=nothing, μ_bottom=1.0, μ_top=0.0)
+    suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=1e-6, close=nothing, f̃_body=nothing, method=:ewald, ewald=nothing, μ_bottom=1.0, μ_top=0.0)
 
 Velocity (body frame) at the collocation points of every body due to the force densities
-`f_body` (body frame). Self terms are spectral; cross terms use one FMM call over the
-collocation nodes, and near targets in `close` (from `close_eval_plan`) are corrected with
-the closed form. `f̃_body` are the even PSH coefficients of f·ω; they are computed from
-`f_body` if not given. `μ_bottom` and `μ_top` are the viscosities below and above the
-plane (see `𝒮_st(f, Ω)`).
+`f_body` (body frame). Self terms are spectral; cross terms use one fast sum over the
+collocation nodes (`method = :ewald`, Ewald + NUFFT, or `:fmm`, FMM3D), and near targets in
+`close` (from `close_eval_plan`) are corrected with the closed form. For `:ewald`, pass a
+plan `ewald` (`StokesEwald` of the current `sources`) to reuse it across calls. `f̃_body`
+are the even PSH coefficients of f·ω; they are computed from `f_body` if not given.
+`μ_bottom` and `μ_top` are the viscosities below and above the plane (see `𝒮_st(f, Ω)`).
 """
-function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=1e-6, close=nothing, f̃_body=nothing, μ_bottom=1.0, μ_top=0.0)
+function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=1e-6, close=nothing, f̃_body=nothing, method=:ewald, ewald=nothing, μ_bottom=1.0, μ_top=0.0)
 
   μ = μ_bottom + μ_top
   N_body   = length(f_body)
@@ -36,43 +58,46 @@ function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body,
     u_body[i][2] .+= ui_body[2]
   end
 
-  # Off-diagonal interactions via FMM3D
+  # Off-diagonal interactions via one fast sum over all nodes
   # Sources and stoklets are in world frame: rotate body-frame quantities by θcm[i]
-  x, y, dz = real.(vec(Ω.z)), imag.(vec(Ω.z)), real.(vec(Ω.dz))
+  suspension_sources!(sources, xcm, θcm, Ω)
+  dz = real.(vec(Ω.dz))
 
   for j = 1 : N_body
     idx  = (j-1)*Nz .+ (1:Nz)
-    rx, ry = rotate(x, y, θcm[j])
-    sources[1, idx]  = real(xcm[j]) .+ rx
-    sources[2, idx]  = imag(xcm[j]) .+ ry
     # Rotate body-frame force to world frame; area element Ω.dz is a real scalar
     fx_world, fy_world = rotate(real.(vec(f_body[j][1])), real.(vec(f_body[j][2])), θcm[j])
     stoklets[1, idx] = fx_world .* dz
     stoklets[2, idx] = fy_world .* dz
   end
 
-  # One FMM call: evaluate at all source locations (ppreg=1 excludes exact self-term)
-  out = stfmm3d(eps, sources; stoklet=stoklets, ppreg=1)
+  # Evaluate at all source locations, i = j excluded, in the FMM3D normalization G/(8π)
+  if method === :fmm
+    pot = stfmm3d(eps, sources; stoklet=stoklets, ppreg=1).pot
+  else
+    E = isnothing(ewald) ? suspension_fast_plan(method, sources, eps) : ewald
+    pot = stokes_ewald!(similar(sources), E, stoklets)
+  end
 
-  # Subtract within-disk contributions: FMM includes them but 𝒮_st already handles them
+  # Subtract within-disk contributions: the fast sum includes them but 𝒮_st already handles them
   for j = 1 : N_body
     idx = (j-1)*Nz .+ (1:Nz)
     self = st3ddir(sources[:, idx], sources[:, idx]; stoklet=stoklets[:, idx], ppregt=1)
-    out.pot[:, idx] .-= self.pottarg
+    pot[:, idx] .-= self.pottarg
   end
 
   # Close evaluation: replace node quadrature at targets near another body
   if !isnothing(close) && !isempty(close)
     f̃ = isnothing(f̃_body) ? [psh(f_body[j] .* Ω.w, Ω) for j in 1 : N_body] : f̃_body
-    close_eval_correct!(out.pot, sources, stoklets, close, f̃, θcm, Ω)
+    close_eval_correct!(pot, sources, stoklets, close, f̃, θcm, Ω)
   end
 
-  # FMM uses G/(8π) with unit viscosity; 𝒮_st uses G/(4π μ) with μ = μ_bottom + μ_top, so multiply by 2/μ
-  # Rotate world-frame FMM output back to body frame of each target body
+  # Fast sum uses G/(8π) with unit viscosity; 𝒮_st uses G/(4π μ) with μ = μ_bottom + μ_top, so multiply by 2/μ
+  # Rotate world-frame output back to body frame of each target body
   for i = 1 : N_body
     idx  = (i-1)*Nz .+ (1:Nz)
-    ux_world = (2 / μ) .* reshape(out.pot[1, idx], shp)
-    uy_world = (2 / μ) .* reshape(out.pot[2, idx], shp)
+    ux_world = (2 / μ) .* reshape(pot[1, idx], shp)
+    uy_world = (2 / μ) .* reshape(pot[2, idx], shp)
     du1, du2 = rotate(ux_world, uy_world, -θcm[i])
     u_body[i][1] .+= du1
     u_body[i][2] .+= du2
@@ -82,7 +107,7 @@ function suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body,
 
 end
 
-function suspension_velocity_eval(xcm, θcm, f_body::Vector, Ω; eps=1e-6, close_eval=true, close_radius=CLOSE_RADIUS, μ_bottom=1.0, μ_top=0.0)
+function suspension_velocity_eval(xcm, θcm, f_body::Vector, Ω; eps=1e-6, close_eval=true, close_radius=CLOSE_RADIUS, method=:ewald, μ_bottom=1.0, μ_top=0.0)
   close = close_eval ? close_eval_plan(xcm, θcm, Ω; close_radius=close_radius) : nothing
   N_body   = length(f_body)
   Nz  = length(Ω.z)
@@ -90,11 +115,11 @@ function suspension_velocity_eval(xcm, θcm, f_body::Vector, Ω; eps=1e-6, close
   u_body = [(zeros(ComplexF64, shp), zeros(ComplexF64, shp)) for _ in 1 : N_body]
   sources  = zeros(Float64, 3, N_body * Nz)
   stoklets = zeros(Float64, 3, N_body * Nz)
-  return suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=eps, close=close, μ_bottom=μ_bottom, μ_top=μ_top)
+  return suspension_velocity_eval!(u_body, sources, stoklets, xcm, θcm, f_body, Ω; eps=eps, close=close, method=method, μ_bottom=μ_bottom, μ_top=μ_top)
 end
 
 """
-    suspension_velocity_solve(xcm, θcm, u_body, Ω; eps=1e-6, μ_bottom=1.0, μ_top=0.0)
+    suspension_velocity_solve(xcm, θcm, u_body, Ω; eps=1e-6, method=:ewald, μ_bottom=1.0, μ_top=0.0)
 
 Solve the Stokes suspension problem: given collocation-space velocities u_body, find
 collocation-space forces f_body such that stokes_suspension(xcm, f_body, Ω) ≈ u_body.
@@ -109,13 +134,15 @@ f = f̃/Ω.w to improve conditioning.
 - `Ω`   : disk discretization
 - `close_eval`   : correct cross terms between nearby bodies with the closed form (ellipses and disks)
 - `close_radius` : near-target radius for close evaluation (see `CLOSE_RADIUS`)
+- `method` : fast sum for the cross terms, `:ewald` (Ewald + NUFFT, default) or `:fmm` (FMM3D);
+        `eps` is its tolerance
 - `μ_bottom`, `μ_top` : viscosities below and above the plane (default: 1.0, 0.0, a half-space
         under a stress-free surface; set both equal for free space)
 
 # Returns
 - Vector of N tuples of force matrices (fx, fy) at collocation points
 """
-function suspension_velocity_solve(xcm, θcm, u_body::Vector, Ω; eps=1e-6, gmrestol=1e-6, close_eval=true, close_radius=CLOSE_RADIUS, μ_bottom=1.0, μ_top=0.0)
+function suspension_velocity_solve(xcm, θcm, u_body::Vector, Ω; eps=1e-6, gmrestol=1e-6, close_eval=true, close_radius=CLOSE_RADIUS, method=:ewald, μ_bottom=1.0, μ_top=0.0)
 
   N_body   = length(u_body)
   Nz  = length(Ω.z)
@@ -126,8 +153,9 @@ function suspension_velocity_solve(xcm, θcm, u_body::Vector, Ω; eps=1e-6, gmre
   sources  = zeros(Float64, 3, N_body * Nz)
   stoklets = zeros(Float64, 3, N_body * Nz)
 
-  # Closed-form maps for nearby bodies (geometry only)
+  # Closed-form maps for nearby bodies, and the fast-sum plan (geometry only)
   close = close_eval ? close_eval_plan(xcm, θcm, Ω; close_radius=close_radius) : nothing
+  ewald = suspension_fast_plan(method, suspension_sources!(sources, xcm, θcm, Ω), eps)
 
   pack(V̂) = vcat([vcat(vec(V̂[i][1]), vec(V̂[i][2])) for i in 1 : N_body]...)
 
@@ -139,7 +167,7 @@ function suspension_velocity_solve(xcm, θcm, u_body::Vector, Ω; eps=1e-6, gmre
   function A!(result, v)
     f̃ = unpack(v)
     f  = [fi ./ Ω.w for fi in ipsh.(f̃, Ref(Ω))]
-    suspension_velocity_eval!(ũ_buf, sources, stoklets, xcm, θcm, f, Ω; eps=eps, close=close, f̃_body=f̃, μ_bottom=μ_bottom, μ_top=μ_top)
+    suspension_velocity_eval!(ũ_buf, sources, stoklets, xcm, θcm, f, Ω; eps=eps, close=close, f̃_body=f̃, method=method, ewald=ewald, μ_bottom=μ_bottom, μ_top=μ_top)
     result .= pack(psh.(ũ_buf, Ref(Ω)))
   end
 
@@ -154,7 +182,7 @@ struct _FuncPrecond f!::Function end
 LinearAlgebra.ldiv!(P::_FuncPrecond, x::AbstractVector) = (tmp = copy(x); P.f!(x, tmp); x)
 
 """
-    suspension_mobility_solve(xcm, θcm, uinf, uslip, F, Ω; eps=1e-6, M=[], μ_bottom=1.0, μ_top=0.0)
+    suspension_mobility_solve(xcm, θcm, uinf, uslip, F, Ω; eps=1e-6, M=[], method=:ewald, μ_bottom=1.0, μ_top=0.0)
 
 Solve the N-body Stokes mobility problem via GMRES.
 
@@ -178,6 +206,8 @@ Preconditioned by independent single-body mobility solves (block-diagonal).
 - `M`     : precomputed single-body mobility matrix (optional; must be computed with the same viscosities)
 - `close_eval`   : correct cross terms between nearby bodies with the closed form (ellipses and disks)
 - `close_radius` : near-target radius for close evaluation (see `CLOSE_RADIUS`)
+- `method` : fast sum for the cross terms, `:ewald` (Ewald + NUFFT, default) or `:fmm` (FMM3D);
+        `eps` is its tolerance
 - `μ_bottom`, `μ_top` : viscosities below and above the plane (default: 1.0, 0.0, a half-space
         under a stress-free surface; set both equal for free space)
 
@@ -185,7 +215,7 @@ Preconditioned by independent single-body mobility solves (block-diagonal).
 - `f` : vector of N force density tuples (fx, fy)
 - `U` : vector of N rigid body velocity vectors [Ux, Uy, ω]
 """
-function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e-6, gmrestol=1e-6, M=[], verbose=false, close_eval=true, close_radius=CLOSE_RADIUS, μ_bottom=1.0, μ_top=0.0)
+function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e-6, gmrestol=1e-6, M=[], verbose=false, close_eval=true, close_radius=CLOSE_RADIUS, method=:ewald, μ_bottom=1.0, μ_top=0.0)
 
   N_body   = length(xcm)
   Nz  = length(Ω.z)
@@ -236,15 +266,16 @@ function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e
   sources  = zeros(Float64, 3, N_body * Nz)
   stoklets = zeros(Float64, 3, N_body * Nz)
 
-  # Closed-form maps for nearby bodies (geometry only)
+  # Closed-form maps for nearby bodies, and the fast-sum plan (geometry only)
   close = close_eval ? close_eval_plan(xcm, θcm, Ω; close_radius=close_radius) : nothing
+  ewald = suspension_fast_plan(method, suspension_sources!(sources, xcm, θcm, Ω), eps)
 
   function matvec!(result, v)
     f̃, U = unpack(v)
     f = [ipsh(f̃[i], Ω) ./ Ω.w for i in 1 : N_body]
 
     # S·f: self via spectral (inside FMM call), cross via FMM
-    suspension_velocity_eval!(u_buf, sources, stoklets, xcm, θcm, f, Ω; eps=eps, close=close, f̃_body=f̃, μ_bottom=μ_bottom, μ_top=μ_top)
+    suspension_velocity_eval!(u_buf, sources, stoklets, xcm, θcm, f, Ω; eps=eps, close=close, f̃_body=f̃, method=method, ewald=ewald, μ_bottom=μ_bottom, μ_top=μ_top)
 
     # Subtract A·U: both u_buf and U are body-frame
     for i in 1 : N_body
@@ -322,5 +353,5 @@ end
 
 export suspension_mobility_solve, suspension_velocity_eval, suspension_velocity_solve
   
-𝒮_st(xcm, θcm, f_body::Vector, Ω; eps=1e-6, μ_bottom=1.0, μ_top=0.0) = suspension_velocity_eval(xcm, θcm, f_body, Ω; eps=eps, μ_bottom=μ_bottom, μ_top=μ_top)
-𝒮_st⁻¹(xcm, θcm, u_body::Vector, Ω; eps=1e-6, gmrestol=1e-6, μ_bottom=1.0, μ_top=0.0) = suspension_velocity_solve(xcm, θcm, u_body, Ω; eps=eps, gmrestol=gmrestol, μ_bottom=μ_bottom, μ_top=μ_top)
+𝒮_st(xcm, θcm, f_body::Vector, Ω; eps=1e-6, method=:ewald, μ_bottom=1.0, μ_top=0.0) = suspension_velocity_eval(xcm, θcm, f_body, Ω; eps=eps, method=method, μ_bottom=μ_bottom, μ_top=μ_top)
+𝒮_st⁻¹(xcm, θcm, u_body::Vector, Ω; eps=1e-6, gmrestol=1e-6, method=:ewald, μ_bottom=1.0, μ_top=0.0) = suspension_velocity_solve(xcm, θcm, u_body, Ω; eps=eps, gmrestol=gmrestol, method=method, μ_bottom=μ_bottom, μ_top=μ_top)
