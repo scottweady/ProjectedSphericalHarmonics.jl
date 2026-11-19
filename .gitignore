@@ -2,7 +2,9 @@
 .claude
 
 archive
-docs
+docs/build/
+docs/close_eval_prototype/
+__pycache__/
 local
 examples/*/
 
@@ -10,3 +12,5 @@ examples/rotors.jl
 *.png 
 
 Manifest.toml
+!docs/src/assets/*.png
+!docs/src/assets/*.gif

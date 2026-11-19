@@ -1,0 +1,11 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+ProjectedSphericalHarmonics = "a0048648-d3c1-424e-9ed4-9f0e22296df7"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+SpecialFunctions = "276daf66-3868-5448-9aa4-cd146d93841b"
+
+[sources]
+ProjectedSphericalHarmonics = {path = ".."}
+
+[compat]
+Documenter = "1"

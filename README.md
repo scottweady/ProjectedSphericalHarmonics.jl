@@ -2,12 +2,21 @@
 
 A Julia library of spectral solvers for integral equations on flat open surfaces using projected spherical harmonics, including Laplace, Stokes and biharmonic layer potentials, conformally mapped domains, and FMM-accelerated many-particle Stokes suspensions.
 
+## Documentation
+
+https://scottweady.github.io/ProjectedSphericalHarmonics.jl/ (getting started, the method, examples, the API
+reference and a code map), built from `docs/` and published to the gh-pages branch on every push to main. To build
+it locally: `julia --project=docs -e 'using Pkg; Pkg.instantiate()'` once, then `julia --project=docs docs/make.jl`,
+and open `docs/build/index.html`.
+
+## Features
+
 Currently the code supports:
 - Laplace single layer and hypersingular operators, and their inverses
 - Stokes single layer operator with a single-body mobility solver
 - Bilaplace single layer
 - Differential operators (grad, div, lap, ∂n, ∂ζ, ∂ζ̄) and a Poisson solver
-- Non-circular domains: ellipses (affine map of the disk) and general shapes via conformal mapping singularity swapping
+- Non-circular domains: ellipses (affine map of the disk) and, experimentally, general shapes via conformal mapping singularity swapping
 - Many-particle Stokes suspensions: mobility and resistance solves accelerated by Ewald + NUFFT (via [FINUFFT](https://github.com/flatironinstitute/finufft)) or FMM (via [FMM3D](https://github.com/flatironinstitute/FMM3D)), with spectrally accurate close evaluation between nearby disks and ellipses
 
 ## Mathematical Background
@@ -105,7 +114,7 @@ println("Max error in Δ⁻¹ for f = -1, g = 0: $err")
 
 ### Non-circular domains
 
-The same operators work on ellipses and on domains given by a boundary curve. The curve is mapped conformally onto the disk.
+The same operators work on ellipses and on domains given by a boundary curve. The curve is mapped conformally onto the disk. Conformally mapped domains are experimental: the curve must enclose the origin (not checked), convergence slows for elongated shapes, and their operators are dense.
 
 ```julia
 using ProjectedSphericalHarmonics
