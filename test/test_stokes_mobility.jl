@@ -89,3 +89,17 @@ _, U_ewald = suspension_mobility_solve(xcm5, θcm5, uinf, nothing, F5, D; eps=1e
 _, U_fmm   = suspension_mobility_solve(xcm5, θcm5, uinf, nothing, F5, D; eps=1e-10, gmrestol=1e-10, method=:fmm)
 check("  N=12 mobility solve, Ewald vs FMM: ", maximum(abs.(vcat(U_ewald...) .- vcat(U_fmm...))), 1e-8)
 @test_throws ArgumentError suspension_mobility_solve(xcm5, θcm5, uinf, nothing, F5, D; method=:direct)
+
+# ── Test 5: within-body subtraction by the precomputed body-frame matrix ─────
+# Same velocities as the per-body direct sum, for both fast methods
+
+S5 = suspension_self_matrix(D)
+f5 = [(randn(rng, size(D.z)) .+ 0im, randn(rng, size(D.z)) .+ 0im) for _ in xcm5]
+for method in (:ewald, :fmm)
+  u_mat = suspension_velocity_eval(xcm5, θcm5, f5, D; eps=1e-10, method=method, S_self=S5)
+  u_dir = suspension_velocity_eval(xcm5, θcm5, f5, D; eps=1e-10, method=method)
+  err5 = maximum(maximum(abs.(u_mat[i][k] .- u_dir[i][k])) for i in eachindex(xcm5), k in 1:2) /
+         maximum(maximum(abs.(u_dir[i][k])) for i in eachindex(xcm5), k in 1:2)
+  check("  S_self matrix vs per-body direct subtraction ($method): ", err5, 1e-10)
+end
+@test_throws DimensionMismatch suspension_velocity_eval(xcm5, θcm5, f5, D; S_self=zeros(2, 2))

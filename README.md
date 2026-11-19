@@ -151,7 +151,7 @@ uinf(z) = (imag.(z), zero(real.(z)))   # shear flow ux = y
 U, ω = stokes_mobility_solve(uinf(D.z), nothing, [0.0, 0.0, 0.0], D)
 ```
 
-`suspension_mobility_solve` solves the N-body problem with GMRES, using the single-body solve as a preconditioner. Particle interactions are summed by Ewald splitting with [FINUFFT](https://github.com/flatironinstitute/finufft) (`method=:ewald`, the default), planned once per solve, or with [FMM3D](https://github.com/flatironinstitute/FMM3D) (`method=:fmm`); `eps` is the tolerance of either. Every body shares one discretization `Ω`, and each body is placed at a center `xcm[i]` with orientation `θcm[i]`.
+`suspension_mobility_solve` solves the N-body problem with GMRES, using the single-body solve as a preconditioner. Particle interactions are summed by Ewald splitting with [FINUFFT](https://github.com/flatironinstitute/finufft) (`method=:ewald`, the default), planned once per solve, or with [FMM3D](https://github.com/flatironinstitute/FMM3D) (`method=:fmm`); `eps` is the tolerance of either. Every body shares one discretization `Ω`, and each body is placed at a center `xcm[i]` with orientation `θcm[i]`. Because every body shares `Ω`, the fast sum's within-body terms are removed with one precomputed matrix, `suspension_self_matrix(Ω)`. The solves build it, along with the single-body mobility matrix `M`, when they aren't given; a time-stepping simulation can build both once and pass `S_self` and `M` at every step.
 
 ```julia
 Ω   = ellipse(2.0, 0.5, 16)
