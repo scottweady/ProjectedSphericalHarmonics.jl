@@ -387,29 +387,42 @@ function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e
     result .= pack(f̃_out, U_out)
   end
 
+  # Block-diagonal preconditioner: the single-body mobility problem per body, in even PSH
+  # coefficients (psh ∘ ipsh is the identity on them). With g = K⁻¹ r̃ for the residual r̃
+  # read as a velocity, the single-body solve gives
+  #   R = M⁻¹ (rU − μ B g),   δf̃ = μ g + Σₖ Rₖ h̃ₖ,   h̃ₖ = μ K⁻¹ psh(eₖ),
+  # with B g the force and torque of the density ipsh(g)/w and e = (1,0), (0,1), (−y,x) the
+  # rigid motions. K is factored once per solve.
+  μ    = μ_bottom + μ_top
+  ieven = findall(Ω.even)
+  Ne   = length(ieven)
+  K    = Ω.K̂_G
+  Klu  = lu([K[1,1] K[1,2]; K[2,1] K[2,2]])
+  evenvec(û) = vcat(û[1][ieven], û[2][ieven])
+  H    = μ .* (Klu \ hcat(evenvec(psh((ones(shp), zeros(shp)), Ω)),
+                         evenvec(psh((zeros(shp), ones(shp)), Ω)),
+                         evenvec(psh((-y, x), Ω))))
+
   function precond!(result, v)
     f̃, rU = unpack(v)
-    # Interpret PSH coefficients as velocity fields for the preconditioner
-    rf = [ipsh(f̃[i], Ω) for i in 1 : N_body]
 
     new_f̃ = Vector{Tuple{Matrix{ComplexF64}, Matrix{ComplexF64}}}(undef, N_body)
     new_U  = Vector{Vector{ComplexF64}}(undef, N_body)
 
     for i in 1 : N_body
-      # stokes_mobility_solve uses convention S·f = A·U - uinf, so pass -rf
-      δU, δω = stokes_mobility_solve(.-rf[i], nothing,
-                                      (real(rU[i][1]), real(rU[i][2]), real(rU[i][3])), Ω; M=M_mob, μ_bottom=μ_bottom, μ_top=μ_top)
+      g  = Klu \ evenvec(f̃[i])
+      ĝ1 = zeros(ComplexF64, shp); ĝ1[ieven] .= @view g[1:Ne]
+      ĝ2 = zeros(ComplexF64, shp); ĝ2[ieven] .= @view g[Ne+1:end]
+      g1, g2 = ipsh(ĝ1, Ω) ./ Ω.w, ipsh(ĝ2, Ω) ./ Ω.w
+      Bg = [integral(g1, Ω), integral(g2, Ω), integral(-y .* g1 .+ x .* g2, Ω)]
 
-      # Velocity that δf must produce: S·δf = A·δU - (-rf) = A·δU + rf
-      ũ = (rf[i][1] .+ δU[1] .- δω .* y,
-           rf[i][2] .+ δU[2] .+ δω .* x)
+      R = M_mob \ (real.(rU[i]) .- μ .* Bg)
+      c = μ .* g .+ H * R
 
-      # Recover force density via single-body inverse
-      δf = 𝒮_st⁻¹(ũ, Ω; μ_bottom=μ_bottom, μ_top=μ_top)
-
-      # Store PSH coefficients of δf·w (the packed representation)
-      new_f̃[i] = psh(δf .* Ω.w, Ω)
-      new_U[i]  = [δU[1], δU[2], δω]
+      δ1 = zeros(ComplexF64, shp); δ1[ieven] .= @view c[1:Ne]
+      δ2 = zeros(ComplexF64, shp); δ2[ieven] .= @view c[Ne+1:end]
+      new_f̃[i] = (δ1, δ2)
+      new_U[i]  = R
     end
 
     result .= pack(new_f̃, new_U)
