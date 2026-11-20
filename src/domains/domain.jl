@@ -8,9 +8,10 @@ Discretization of a non-circular domain, the image of the unit disk under a map 
 returned by `ellipse(a, b, Mℓ, Mₘ)` (an affine map) and `domain(γ, Mℓ, Mₘ)` (a conformal map).
 It wraps the `Disk` of the reference grid (its fields, such as `even` and `w`, are reachable from
 the `Domain`) and adds the mapped points `z`, the area weights `dz` (with the Jacobian of the map),
-and the operators of the domain as matrices in coefficient space. Functions on a `Domain` are
-sampled at `Ω.z`; the weight `Ω.w` is the disk's, ``\\sqrt{1 - |ζ|^2}``, which vanishes on the
-boundary like the square root of the distance to it.
+and the operators of the domain as matrices in coefficient space (`K̂_S`, `K̂_N`, `K̂_G`). Functions
+on a `Domain` are sampled at `Ω.z`; the weight `Ω.w` is the disk's, ``\\sqrt{1 - |ζ|^2}``, which
+vanishes on the boundary like the square root of the distance to it. For a conformal domain, the
+operators on the grid (`K_S`, `K_N`, `K_G`) are formed when accessed, as dense matrices.
 """
 struct Domain
   D
@@ -73,84 +74,184 @@ function domain(γ, Mℓ::Int, Mₘ::Int)
   end
   dz = abs2.(z′) .* dζ
 
-  ζvec, zvec, z′vec = vec(ζ), vec(z), vec(z′)
-  N = length(ζvec)
-
-  # The divided difference (zᵢ - zⱼ)/(ζᵢ - ζⱼ) = ρ e^{iα} (z′ on the diagonal) relates distances and
-  # directions on the domain to those on the disk. With the Jacobian Jⱼ = |z′ⱼ|² of the source point,
-  # the kernels on the grid are H = J/ρ (for 1/r) and J/ρ³ (for 1/r³), and (c, s) = (cos α, sin α)
-  # rotates the direction of the Stokeslet
-  H, H3, c, s = (Matrix{Float64}(undef, N, N) for _ = 1 : 4)
-  Threads.@threads for j = 1 : N
-    Jⱼ = abs2(z′vec[j])
-    for i = 1 : N
-      m = i == j ? z′vec[j] : (zvec[i] - zvec[j]) / (ζvec[i] - ζvec[j])
-      ρ = abs(m)
-      H[i, j], H3[i, j] = Jⱼ / ρ, Jⱼ / ρ^3
-      c[i, j], s[i, j] = real(m) / ρ, imag(m) / ρ
-    end
-  end
-
   even, odd = findall(vec(D.even)), findall(vec(D.odd))
-
-  # Grid operators Q Ŝ P of disk operators Ŝ in coefficient space, built from the factors of the
-  # transforms (see `_grid_operator`)
   Y, _ = _psh_factors(D)
   dw = vec(D.dw)
-  K_S = _grid_operator(sparse(Diagonal(D.K̂_S[even])), even, Y, dw) .* H
-  K_N = _grid_operator(sparse(Diagonal(D.K̂_N[odd])), odd, Y, dw) .* H3
 
-  # Disk single layers weighted by the products of the components of the direction on the disk
-  Ŝcc = laplace3d_angular_matrix(ϕ -> cos(ϕ)^2, D.Lspan, D.Mspan, even)
-  Ŝsc = laplace3d_angular_matrix(ϕ -> cos(ϕ) * sin(ϕ), D.Lspan, D.Mspan, even)
-  Ŝss = laplace3d_angular_matrix(ϕ -> sin(ϕ)^2, D.Lspan, D.Mspan, even)
-
-  K_cc = _grid_operator(Ŝcc, even, Y, dw)
-  K_sc = _grid_operator(Ŝsc, even, Y, dw)
-  K_ss = _grid_operator(Ŝss, even, Y, dw)
-
-  # Rotate the direction by α and weight by H
-  K_G = Matrix{Matrix{ComplexF64}}(undef, 2, 2)
-  K_G[1, 1], K_G[1, 2], K_G[2, 2] = (similar(K_S) for _ = 1 : 3)
-  K_G[2, 1] = K_G[1, 2]
-  Threads.@threads for j = 1 : N
-    for i = 1 : N
-      cα, sα, h = c[i, j], s[i, j], H[i, j]
-      cc, sc, ss = K_cc[i, j], K_sc[i, j], K_ss[i, j]
-      K_G[1, 1][i, j] = K_S[i, j] + h * (cc * cα^2 - 2 * sc * cα * sα + ss * sα^2)
-      K_G[1, 2][i, j] = h * (sc * (cα^2 - sα^2) + (cc - ss) * cα * sα)
-      K_G[2, 2][i, j] = K_S[i, j] + h * (cc * sα^2 + 2 * sc * cα * sα + ss * cα^2)
-    end
-  end
-
-  # Back to coefficient space: P K Q restricted to the modes of each parity
-  K̂_S = _coefficient_operator(K_S, even, Y, dw)
-  K̂_N = _coefficient_operator(K_N, odd, Y, dw)
-
+  G = ConformalKernels(D, ζ, z, z′, Y, dw, even, odd)
+  K̂_S, K̂_N, K̂₁₁, K̂₁₂, K̂₂₂ = _conformal_operators(G, Y, dw, even, odd)
   K̂_G = Matrix{Matrix{ComplexF64}}(undef, 2, 2)
-  K̂_G[1, 1] = _coefficient_operator(K_G[1, 1], even, Y, dw)
-  K̂_G[1, 2] = _coefficient_operator(K_G[1, 2], even, Y, dw)
-  K̂_G[2, 1] = K̂_G[1, 2]
-  K̂_G[2, 2] = _coefficient_operator(K_G[2, 2], even, Y, dw)
+  K̂_G[1, 1], K̂_G[1, 2], K̂_G[2, 1], K̂_G[2, 2] = K̂₁₁, K̂₁₂, K̂₁₂, K̂₂₂
 
-  return Domain(D, f, df, z, dz, K_S, K_N, K_G, K̂_S, K̂_N, K̂_G, nothing)
-  
+  # The grid operators K_S, K_N and K_G are formed from G when accessed (see `getproperty`)
+  return Domain(D, f, df, z, dz, G, G, G, K̂_S, K̂_N, K̂_G, nothing)
+
 end
 
 domain(γ, M::Int) = domain(γ, M, M)
 
-# The PSH transform is an FFT in θ followed by a radial projection for each azimuthal order:
-# P = blockdiag(Rₘ) (F ⊗ I) and Q = (Fᴴ ⊗ I) blockdiag(Yₘ), with Yₘ[i, ℓ] = y_ℓ^m(rᵢ), Rₘ = Yₘᴴ diag(dw)
-# and F[m, j] = e^{-imθⱼ} (see `_psh_factors`). The two functions below use this structure in place of
-# the dense matrices P and Q.
+# ---- Singularity swapping on the grid ---------------------------------------------------------------
+# The divided difference m = (z_p - z_q)/(ζ_p - ζ_q) = ρ e^{iα} (z′ on the diagonal) relates distances and
+# directions on the domain to those on the disk. With the Jacobian J_q = |z′_q|² of the source point q, the
+# operators on the grid are the disk's grid operators Q Ŝ P (see `_circulants`) times smooth factors:
+#   K_S = (J/ρ) A,  K_N = (J/ρ³) A_N,  K_G = (J/ρ) [A I + (rotated r̂r̂ᵀ of the disk)],
+# where A, A_N are the disk's single layer and hypersingular operators. The direction on the domain has angle
+# ψ = ϕ + α, with ϕ the angle on the disk, so with E, Ē the disk operators of the kernels e^{±2iϕ}/|ζ - η|,
+#   cos²ψ ↦ A/2 + (e^{2iα} E + e^{-2iα} Ē)/4,  sin²ψ ↦ A/2 - (…)/4,  sinψ cosψ ↦ (e^{2iα} E - e^{-2iα} Ē)/4i.
+# A, A_N, E, Ē each shift the azimuthal order by a single κ, so their entries come from small tables.
 
-# Grid operator Q[:, idx] Ŝ P[idx, :] of a sparse operator Ŝ on the coefficients `idx`. A block of Ŝ
-# mapping order m to order m + κ gives e^{iκθⱼ} times a block circulant in θ:
-#   (Q Ŝ P)[(i, j), (i′, j′)] = Σ_κ e^{iκθⱼ} C_κ[i, i′, j - j′],   C_κ[:, :, Δ] = Σ_m e^{imθ_Δ} Y_{m+κ} Ŝ_{m+κ,m} Rₘ
-function _grid_operator(Ŝ::SparseMatrixCSC, idx, Y, dw)
+const _Terms = Vector{Tuple{Vector{ComplexF64}, Array{ComplexF64, 3}}}
+
+# Tables of A, A_N, E, Ē (see `_circulants`), each a single shift: A and A_N keep the order (κ = 0), E and Ē
+# shift it by ±2, with the phases eᴱ[j] = e^{2iθⱼ} and its conjugate
+struct ConformalKernels
+  Nr::Int
+  Nθ::Int
+  ζ::Vector{ComplexF64}
+  z::Vector{ComplexF64}
+  z′::Vector{ComplexF64}
+  S::Array{ComplexF64, 3}     # disk single layer, even modes
+  N::Array{ComplexF64, 3}     # disk hypersingular operator, odd modes
+  E::Array{ComplexF64, 3}     # kernel e^{2iϕ}/|ζ - η|, even modes
+  Ē::Array{ComplexF64, 3}     # kernel e^{-2iϕ}/|ζ - η|, even modes
+  eᴱ::Vector{ComplexF64}
+end
+
+function ConformalKernels(D, ζ, z, z′, Y, dw, even, odd)
+  Nθ = size(Y, 3)
+  function single(Ŝ, idx, κ)
+    terms = _circulants(Ŝ, idx, Y, dw)
+    (length(terms) == 1 && terms[1][1] ≈ [cis(2π * κ * (j - 1) / Nθ) for j = 1 : Nθ]) ||
+      error("expected an operator shifting the azimuthal order by $κ")
+    return terms[1][2]
+  end
+  Ê = laplace3d_angular_matrix(ϕ -> cis(2ϕ), D.Lspan, D.Mspan, even)
+  Ē = laplace3d_angular_matrix(ϕ -> cis(-2ϕ), D.Lspan, D.Mspan, even)
+  return ConformalKernels(size(Y, 1), Nθ, vec(ζ), vec(z), vec(z′),
+                          single(sparse(Diagonal(D.K̂_S[even])), even, 0),
+                          single(sparse(Diagonal(D.K̂_N[odd])), odd, 0),
+                          single(Ê, even, 2), single(Ē, even, -2),
+                          [cis(4π * (j - 1) / Nθ) for j = 1 : Nθ])
+end
+
+Base.show(io::IO, G::ConformalKernels) =
+  print(io, "ConformalKernels on a $(G.Nr) × $(G.Nθ) grid (grid operators formed on access)")
+
+# Entry (p, q) of a disk grid operator from its tables, for p = (i, j), q = (i′, j′), Δ = j - j′ mod Nθ
+@inline function _circ(terms, i, j, i′, Δ)
+  acc = zero(ComplexF64)
+  @inbounds for (e, C) in terms
+    acc += e[j] * C[i, i′, Δ]
+  end
+  return acc
+end
+
+# Column q (a source point) of the grid operators K_S, K_N, K_G[1, 1], K_G[1, 2], K_G[2, 2]
+function _kernel_column!(kS, kN, g11, g12, g22, G::ConformalKernels, q)
+  Nr, Nθ = G.Nr, G.Nθ
+  i′, j′ = mod1(q, Nr), cld(q, Nr)
+  ζq, zq, z′q = G.ζ[q], G.z[q], G.z′[q]
+  J = abs2(z′q)
+  @inbounds for j = 1 : Nθ
+    Δ = mod(j - j′, Nθ) + 1
+    eᴱ = G.eᴱ[j]
+    for i = 1 : Nr
+      p = i + (j - 1) * Nr
+      # m = Δz/Δζ = ρ e^{iα}: ρ² = |Δz|²/|Δζ|² and e^{2iα} = (Δz conj(Δζ))²/(|Δz|²|Δζ|²)
+      if p == q
+        ρ², e²ⁱᵅ = abs2(z′q), z′q^2 / abs2(z′q)
+      else
+        Δz, Δζ = G.z[p] - zq, G.ζ[p] - ζq
+        a = Δz * conj(Δζ)
+        ρ², e²ⁱᵅ = abs2(Δz) / abs2(Δζ), a^2 / abs2(a)
+      end
+      h = J / sqrt(ρ²)
+      s = G.S[i, i′, Δ]
+      e = (e²ⁱᵅ * eᴱ) * G.E[i, i′, Δ]
+      ē = conj(e²ⁱᵅ * eᴱ) * G.Ē[i, i′, Δ]
+      kS[p] = h * s
+      kN[p] = (h / ρ²) * G.N[i, i′, Δ]
+      g11[p] = h * (1.5 * s + (e + ē) / 4)
+      g22[p] = h * (1.5 * s - (e + ē) / 4)
+      g12[p] = h * (e - ē) * (-im / 4)
+    end
+  end
+end
+
+# The grid operators as dense matrices: K_S, K_N and the 2×2 blocks of K_G
+function _grid_matrices(G::ConformalKernels)
+  N = length(G.z)
+  KS, KN, G11, G12, G22 = (Matrix{ComplexF64}(undef, N, N) for _ = 1 : 5)
+  Threads.@threads for q = 1 : N
+    _kernel_column!(view(KS, :, q), view(KN, :, q), view(G11, :, q), view(G12, :, q), view(G22, :, q), G, q)
+  end
+  K_G = Matrix{Matrix{ComplexF64}}(undef, 2, 2)
+  K_G[1, 1], K_G[1, 2], K_G[2, 1], K_G[2, 2] = G11, G12, G12, G22
+  return KS, KN, K_G
+end
+
+# The operators in coefficient space, (P K Q)[idx, idx] for K_S, K_N and the blocks of K_G, without forming
+# the grid operators: each column is generated, transformed and projected (rows), then the rows of the
+# result are transformed and projected (columns)
+function _conformal_operators(G::ConformalKernels, Y, dw, even, odd)
 
   Nr, _, Nθ = size(Y)
   N = Nr * Nθ
+  Yₑ, nmₑ = _mode_basis(Y, even)
+  Yₒ, nmₒ = _mode_basis(Y, odd)
+  Rₑ, Rₒ = Yₑ .* dw, Yₒ .* dw
+
+  # Rows, stored transposed: Tᵀ[q, p] = (P K)[idx[p], q]
+  TS, T11, T12, T22 = (Matrix{ComplexF64}(undef, N, length(even)) for _ = 1 : 4)
+  TN = Matrix{ComplexF64}(undef, N, length(odd))
+
+  plan = plan_fft!(zeros(ComplexF64, Nr, Nθ), 2; flags=FFTW.ESTIMATE | FFTW.UNALIGNED)
+  chunks = collect(Iterators.partition(1 : N, cld(N, 4Threads.nthreads())))
+  Threads.@threads for cs in chunks
+    bS, bN, b11, b12, b22 = (zeros(ComplexF64, Nr, Nθ) for _ = 1 : 5)
+    for q in cs
+      _kernel_column!(bS, bN, b11, b12, b22, G, q)
+      for b in (bS, bN, b11, b12, b22)
+        plan * b
+      end
+      _project!(TS, q, bS, Rₑ, nmₑ, true, true)
+      _project!(TN, q, bN, Rₒ, nmₒ, true, true)
+      _project!(T11, q, b11, Rₑ, nmₑ, true, true)
+      _project!(T12, q, b12, Rₑ, nmₑ, true, true)
+      _project!(T22, q, b22, Rₑ, nmₑ, true, true)
+    end
+  end
+
+  # Columns: row p of P K is column p of Tᵀ, and the result is written transposed back
+  cols(T, Yc, nms) = _transform_columns(T, Yc, nms, Nr, Nθ, false, true)
+  return cols(TS, Yₑ, nmₑ), cols(TN, Yₒ, nmₒ), cols(T11, Yₑ, nmₑ), cols(T12, Yₑ, nmₑ), cols(T22, Yₑ, nmₑ)
+
+end
+
+# ---- The transforms from their factors --------------------------------------------------------------
+# The PSH transform is an FFT in θ followed by a radial projection for each azimuthal order:
+# P = blockdiag(Rₘ) (F ⊗ I) and Q = (Fᴴ ⊗ I) blockdiag(Yₘ), with Yₘ[i, ℓ] = y_ℓ^m(rᵢ), Rₘ = Yₘᴴ diag(dw)
+# and F[m, j] = e^{-imθⱼ} (see `_psh_factors`). The functions below use this structure in place of the
+# dense matrices P and Q.
+
+# Radial basis Yc[:, p] = y_ℓ^m(r) of the modes idx[p], and their orders (as column indices nm)
+function _mode_basis(Y, idx)
+  Nr = size(Y, 1)
+  nms = cld.(idx, Nr)
+  Yc = similar(Y, Nr, length(idx))
+  for p in eachindex(idx)
+    Yc[:, p] .= view(Y, :, mod1(idx[p], Nr), nms[p])
+  end
+  return Yc, nms
+end
+
+# Tables of the grid operator Q[:, idx] Ŝ P[idx, :] of a sparse operator Ŝ on the coefficients `idx`. A
+# block of Ŝ mapping order m to order m + κ gives e^{iκθⱼ} times a block circulant in θ:
+#   (Q Ŝ P)[(i, j), (i′, j′)] = Σ_κ e^{iκθⱼ} C_κ[i, i′, j - j′],   C_κ[:, :, Δ] = Σ_m e^{imθ_Δ} Y_{m+κ} Ŝ_{m+κ,m} Rₘ
+# returned as the pairs (e^{iκθ}, C_κ)
+function _circulants(Ŝ::SparseMatrixCSC, idx, Y, dw)
+
+  Nr, _, Nθ = size(Y)
 
   # Blocks Ŝ_{m+κ,m} of each shift κ (mod Nθ), indexed by the order m of the input
   blocks = Dict{Int, Array{ComplexF64, 3}}()
@@ -164,86 +265,93 @@ function _grid_operator(Ŝ::SparseMatrixCSC, idx, Y, dw)
     end
   end
 
-  # C[:, :, Δ + 1] = Σ_m e^{2πi m Δ/Nθ} Y_{m+κ} S_m R_m for each shift κ, and the phases e^{iκθⱼ}
-  κs = collect(keys(blocks))
-  Cs = map(κs) do κ
-    S = blocks[κ]
+  terms = _Terms()
+  for (κ, S) in blocks
     C = zeros(ComplexF64, Nr, Nr, Nθ)
     for nm = 1 : Nθ
       nm′ = mod1(nm + κ, Nθ)
       C[:, :, nm] .= (view(Y, :, :, nm′) * view(S, :, :, nm)) * (view(Y, :, :, nm)' .* transpose(dw))
     end
     bfft!(C, 3)
+    push!(terms, ([cis(2π * κ * (j - 1) / Nθ) for j = 1 : Nθ], C))
   end
-  E = [cis(2π * κ * (j - 1) / Nθ) for j = 1 : Nθ, κ in κs]
+  return terms
 
-  # One pass over A, summing the shifts
+end
+
+# The grid operator Q[:, idx] Ŝ P[idx, :] as a dense matrix
+function _grid_operator(Ŝ::SparseMatrixCSC, idx, Y, dw)
+  Nr, _, Nθ = size(Y)
+  N = Nr * Nθ
+  terms = _circulants(Ŝ, idx, Y, dw)
   A = Matrix{ComplexF64}(undef, N, N)
   A4 = reshape(A, Nr, Nθ, Nr, Nθ)
   Threads.@threads for j′ = 1 : Nθ
-    @inbounds for i′ = 1 : Nr, j = 1 : Nθ
+    for i′ = 1 : Nr, j = 1 : Nθ
       Δ = mod(j - j′, Nθ) + 1
       for i = 1 : Nr
-        acc = zero(ComplexF64)
-        for k in eachindex(Cs)
-          acc += E[j, k] * Cs[k][i, i′, Δ]
-        end
-        A4[i, j, i′, j′] = acc
+        A4[i, j, i′, j′] = _circ(terms, i, j, i′, Δ)
       end
     end
   end
-
   return A
-
 end
 
 # Coefficient operator (P K Q)[idx, idx] of a grid operator K. Each column of K, as an (Nr, Nθ) array,
 # is transformed by the FFT in θ and projected radially onto the modes in `idx`; then each row of the
-# result likewise by the inverse FFT and the radial basis. The columns are threaded, each with its own
-# buffer, executing one FFTW plan (execution is thread-safe; planning is not)
+# result likewise by the inverse FFT and the radial basis
 function _coefficient_operator(K, idx, Y, dw)
-
   Nr, _, Nθ = size(Y)
-  N = Nr * Nθ
-  n = length(idx)
-  nms = cld.(idx, Nr)
-  Yc = similar(Y, Nr, n)                  # Yc[:, p] = y_ℓ^m(r) of the mode idx[p]
-  for p = 1 : n
-    Yc[:, p] .= view(Y, :, mod1(idx[p], Nr), nms[p])
-  end
-  Rc = Yc .* dw                           # conj(Rc[:, p]) is its radial projection
-
-  T = _transform_columns(K, Rc, nms, Nr, Nθ, true)            # T[p, c] = (P K)[idx[p], c]
-  return transpose(_transform_columns(transpose(T), Yc, nms, Nr, Nθ, false))
-
+  Yc, nms = _mode_basis(Y, idx)
+  Tᵀ = _transform_columns(K, Yc .* dw, nms, Nr, Nθ, true, true)     # Tᵀ[c, p] = (P K)[idx[p], c]
+  return _transform_columns(Tᵀ, Yc, nms, Nr, Nθ, false, true)
 end
 
-# Out[p, c] = Σᵢ conj(B[i, p]) û[i, nms[p]] (forward = true) or Σᵢ B[i, p] û[i, nms[p]], where û is
-# the FFT (forward) or unnormalized inverse FFT in θ of column c of A, reshaped to (Nr, Nθ)
-function _transform_columns(A, B, nms, Nr, Nθ, forward)
-  n, Nc = size(B, 2), size(A, 2)
-  Out = Matrix{ComplexF64}(undef, n, Nc)
+# Out[p, c] (Out[c, p] if `transposed`) = Σᵢ conj(B[i, p]) û[i, nms[p]] (forward = true) or
+# Σᵢ B[i, p] û[i, nms[p]], where û is the FFT (forward) or unnormalized inverse FFT in θ of column c of A,
+# reshaped to (Nr, Nθ). The columns are threaded, each with its own buffer, executing one FFTW plan
+# (execution is thread-safe; planning is not)
+function _transform_columns(A, B, nms, Nr, Nθ, forward, transposed=false)
+  Nc = size(A, 2)
+  Out = transposed ? Matrix{ComplexF64}(undef, Nc, size(B, 2)) : Matrix{ComplexF64}(undef, size(B, 2), Nc)
   buf0 = zeros(ComplexF64, Nr, Nθ)
   flags = FFTW.ESTIMATE | FFTW.UNALIGNED
   plan = forward ? plan_fft!(buf0, 2; flags=flags) : plan_bfft!(buf0, 2; flags=flags)
-  chunks = Iterators.partition(1 : Nc, cld(Nc, 4Threads.nthreads()))
-  Threads.@threads for cs in collect(chunks)
+  chunks = collect(Iterators.partition(1 : Nc, cld(Nc, 4Threads.nthreads())))
+  Threads.@threads for cs in chunks
     buf = similar(buf0)
     for c in cs
       copyto!(buf, view(A, :, c))
       plan * buf
-      @inbounds for p = 1 : n
-        nm, acc = nms[p], zero(ComplexF64)
-        @simd for i = 1 : Nr
-          acc += (forward ? conj(B[i, p]) : B[i, p]) * buf[i, nm]
-        end
-        Out[p, c] = acc
-      end
+      _project!(Out, c, buf, B, nms, forward, transposed)
     end
   end
   return Out
 end
 
+# Out[p, c] (Out[c, p] if `transposed`) = Σᵢ conj(B[i, p]) û[i, nms[p]] (forward) or Σᵢ B[i, p] û[i, nms[p]]
+function _project!(Out, c, û, B, nms, forward, transposed=false)
+  Nr = size(B, 1)
+  @inbounds for p in axes(B, 2)
+    nm, acc = nms[p], zero(ComplexF64)
+    @simd for i = 1 : Nr
+      acc += (forward ? conj(B[i, p]) : B[i, p]) * û[i, nm]
+    end
+    if transposed
+      Out[c, p] = acc
+    else
+      Out[p, c] = acc
+    end
+  end
+end
+
 const _domain_fields = fieldnames(Domain)
-Base.getproperty(Ω::Domain, s::Symbol) =
-  s ∈ _domain_fields ? getfield(Ω, s) : getproperty(getfield(Ω, :D), s)
+function Base.getproperty(Ω::Domain, s::Symbol)
+  if s === :K_S || s === :K_N || s === :K_G
+    K = getfield(Ω, s)
+    K isa ConformalKernels || return K
+    K_S, K_N, K_G = _grid_matrices(K)
+    return s === :K_S ? K_S : s === :K_N ? K_N : K_G
+  end
+  return s ∈ _domain_fields ? getfield(Ω, s) : getproperty(getfield(Ω, :D), s)
+end

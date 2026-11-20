@@ -72,3 +72,36 @@ let θ = range(0, 2π, 129)[1:end-1]
   σ = 𝒮⁻¹(1.0, Ω)
   check("  𝒮(𝒮⁻¹(1)) on a conformal domain: ", maximum(abs, 𝒮(σ, Ω) .- 1), 1e-10)
 end
+
+# domain builds its operators column by column without forming the grid operators, with the Stokes
+# directions from the kernels e^{±2iϕ}/r. Against the dense construction: Q Ŝ P of the disk's operators
+# times the smooth factors, with cos², sin cos, sin² of the direction rotated by the angle of the map
+let θ = range(0, 2π, 129)[1:end-1], M = 8
+  Ω = domain(1.5 .* cos.(θ) .+ im .* (sin.(θ) .+ 0.3 .* sin.(2θ)), M)
+  D = Ω.D
+  even, odd = findall(vec(D.even)), findall(vec(D.odd))
+  P, Q = psh_matrix(D), ipsh_matrix(D)
+  ζ, z, z′ = vec(D.ζ), vec(Ω.z), vec(Ω.df.(D.ζ))
+  m = (z .- transpose(z)) ./ (ζ .- transpose(ζ))
+  m[PSH.diagind(m)] .= z′
+  ρ, α = abs.(m), angle.(m)
+  H = transpose(abs2.(z′)) ./ ρ
+  A(Ŝ, idx) = Q[:, idx] * Ŝ * P[idx, :]
+  ang(g) = A(PSH.laplace3d_angular_matrix(g, D.Lspan, D.Mspan, even), even)
+  K_S = H .* A(PSH.Diagonal(D.K̂_S[even]), even)
+  K_N = H ./ ρ.^2 .* A(PSH.Diagonal(D.K̂_N[odd]), odd)
+  cc, sc, ss = ang(ϕ -> cos(ϕ)^2), ang(ϕ -> cos(ϕ) * sin(ϕ)), ang(ϕ -> sin(ϕ)^2)
+  c, s = cos.(α), sin.(α)
+  G11 = K_S .+ H .* (cc .* c.^2 .- 2 .* sc .* c .* s .+ ss .* s.^2)
+  G12 = H .* (sc .* (c.^2 .- s.^2) .+ (cc .- ss) .* c .* s)
+  G22 = K_S .+ H .* (cc .* s.^2 .+ 2 .* sc .* c .* s .+ ss .* c.^2)
+  proj(K, idx) = P[idx, :] * K * Q[:, idx]
+  check("  conformal K̂_S vs dense construction: ", relerr(Ω.K̂_S, proj(K_S, even)), 1e-12)
+  check("  conformal K̂_N vs dense construction: ", relerr(Ω.K̂_N, proj(K_N, odd)), 1e-12)
+  check("  conformal K̂_G vs dense construction: ",
+        maximum(relerr(Ω.K̂_G[k...], proj(K, even)) for (k, K) in (((1, 1), G11), ((1, 2), G12), ((2, 2), G22))), 1e-12)
+  # The grid operators, formed on access
+  check("  conformal grid operators K_S, K_G vs dense construction: ",
+        max(relerr(Ω.K_S, K_S), relerr(Ω.K_G[1, 1], G11), relerr(Ω.K_G[1, 2], G12), relerr(Ω.K_G[2, 2], G22)), 1e-10)
+  @test Ω.K_G[2, 1] === Ω.K_G[1, 2] || Ω.K_G[2, 1] == Ω.K_G[1, 2]
+end
