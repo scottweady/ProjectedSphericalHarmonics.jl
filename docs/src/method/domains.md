@@ -56,21 +56,30 @@ samples.
 
 With ``M(\zeta, \eta) = (f(\zeta) - f(\eta))/(\zeta - \eta)``, which is smooth and nonzero with ``M(\zeta, \zeta) =
 f'(\zeta)``, the single layer kernel on ``\Omega`` is ``1/(|M|\,|\zeta - \eta|)``. The package forms it as the
-disk's operator, the dense matrix ``Q\,\hat K\,P`` of transform, eigenvalues and inverse transform, multiplied
+disk's operator, the matrix ``Q\,\hat K\,P`` of transform, eigenvalues and inverse transform on the grid, multiplied
 entrywise by the smooth factor ``J(\eta)/|M(\zeta, \eta)|``. This is singularity swapping: the disk's operator
 absorbs the singularity, and the smooth factor is applied pointwise. The hypersingular operator and the Stokes
 blocks are built the same way. The Stokes blocks also include the angular factors ``\cos^2``, ``\sin\cos``,
 ``\sin^2`` of the disk and the rotation by the angle of ``M``.
 
 The result is a set of dense ``N \times N`` matrices, with ``N`` the number of grid points, projected to
-coefficient space. Building them takes ``O(N^2)`` memory and ``O(N^3)`` time:
+coefficient space. The transforms are never formed as dense matrices: each is an FFT in ``\theta`` and, for each
+order ``m``, a radial sum, ``P = \operatorname{blockdiag}(R_m)\,(F \otimes I)`` and ``Q = (F^* \otimes
+I)\,\operatorname{blockdiag}(Y_m)``. A disk operator ``\hat K`` that shifts the order by ``\kappa`` (``\kappa = 0``
+for the single layer, ``0, \pm 2`` for the angular factors) gives ``Q\,\hat K\,P`` as a phase ``e^{i\kappa\theta}``
+times a matrix circulant in ``\theta``, from ``M_\ell^3`` work per order. The projection ``P\,K\,Q`` of a grid matrix
+is FFTs in ``\theta`` and radial sums of its rows and columns. Building the operators takes ``O(N^2)`` memory and
+``O(N^2 M)`` time:
 
 | `M` | grid points ``N`` | `domain` | `ellipse` | `disk` |
 |:--|:--|:--|:--|:--|
-| 8 | 153 | 0.04 s, 2 MiB | 1 ms, 0.1 MiB | 0.2 ms |
-| 16 | 561 | 0.35 s, 26 MiB | 3 ms, 1.3 MiB | 0.8 ms |
-| 24 | 1225 | 1.8 s, 123 MiB | 0.02 s, 5.3 MiB | 1.8 ms |
+| 8 | 153 | 0.04 s, 2 MiB | 1 ms, 0.1 MiB | 0.6 ms |
+| 16 | 561 | 0.12 s, 26 MiB | 9 ms, 1.3 MiB | 2 ms |
+| 24 | 1225 | 0.32 s, 120 MiB | 0.03 s, 5.3 MiB | 6 ms |
+| 32 | 2145 | 0.63 s, 380 MiB | 0.03 s, 15 MiB | 5 ms |
 
-(Laptop, 8 threads.) The operators of a conformal domain are then dense solves at each call. Use `ellipse` for
+(Workstation, 8 threads, under load.) A conformal domain keeps the LU factorization of each of its operators, made
+by the first solve with it, so later solves are triangular solves. A domain whose shape changes must be built again,
+with its factorizations; a moving rigid body need not, as its operators are those of its own frame. Use `ellipse` for
 ellipses: it gives the same results far more cheaply. Close evaluation between bodies is available for disks and
 ellipses only.

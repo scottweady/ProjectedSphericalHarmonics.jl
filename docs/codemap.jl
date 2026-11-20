@@ -50,7 +50,7 @@ const SETTINGS = [
      about="ellipse(1.5, 1.0, 16): the disk under an affine map, its single layer and Stokes operators from the Fourier coefficients of the angular kernels (and the EllipseGeometry for close evaluation), and one solve 𝒮⁻¹(1, Ω)",
      run=:(let Ω = ellipse(1.5, 1.0, 16); 𝒮⁻¹(1, Ω) end)),
     (id="domain", label="Conformal domain", group="Domain", base=false, parent="", schemes=String[],
-     about="domain(γ, 16) from 128 samples of a three-lobed boundary: the conformal map onto the disk, the operators by singularity swapping (dense, through psh_matrix and ipsh_matrix), and one solve 𝒮⁻¹(1, Ω)",
+     about="domain(γ, 16) from 128 samples of a three-lobed boundary: the conformal map onto the disk, the operators by singularity swapping (dense, from the FFT and radial factors of the transforms), and one solve 𝒮⁻¹(1, Ω)",
      run=:(let Ω = domain(γ, 16); 𝒮⁻¹(1, Ω) end)),
     # the basis and transforms
     (id="eigen", label="Eigenfunctions", group="Basis & transforms", base=false, parent="disk", schemes=DISK,
@@ -67,7 +67,7 @@ const SETTINGS = [
      about="upsample(u, Ω, 24, 24): grid values on a finer grid through the PSH expansion",
      run=:(upsample(exp.(real.(Ω.z)), Ω, 24, 24))),
     (id="matrices", label="Transform matrices", group="Basis & transforms", base=false, parent="disk", schemes=ALL,
-     about="psh_matrix and ipsh_matrix: the dense matrices of the transforms, one column per transform of a unit vector",
+     about="psh_matrix and ipsh_matrix: the dense matrices of the transforms, filled from the radial basis and the Fourier factors",
      run=:(begin psh_matrix(Ω); ipsh_matrix(Ω) end)),
     (id="quadrature", label="trace and integral", group="Basis & transforms", base=false, parent="disk", schemes=ALL,
      about="trace (of a function and of a tuple) on the boundary, integral over the domain, and the grids legpts, trigpts and diskpts",

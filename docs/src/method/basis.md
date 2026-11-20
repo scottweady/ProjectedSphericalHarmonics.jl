@@ -61,7 +61,8 @@ which ``y_\ell^m`` at the grid radii comes from the three-term recurrence of the
 
 - `upsample(u, D, Nr, Nθ)` evaluates the expansion of `u` on a finer grid.
 - `trace(u, D)` evaluates it on the rim.
-- `psh_matrix` and `ipsh_matrix` build the dense matrices of the transforms.
+- `psh_matrix` and `ipsh_matrix` build the dense matrices of the transforms, entry by entry from the radial
+  basis and the Fourier factors.
 - `integral(u, Ω)` is `sum(u .* Ω.dz)`.
 
 ## Differentiation
