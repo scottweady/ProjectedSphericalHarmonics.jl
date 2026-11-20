@@ -15,7 +15,7 @@ for (n, Ω) in enumerate([ellipse(a, b, M), domain(γ, M)])
   if n == 1
     println("Using angle discretization")
   else
-    println("Using conformal discretization")
+    println("Using harmonic map (domain)")
   end
 
   # Compute single layer for a uniform charge

@@ -34,6 +34,7 @@ export disk, Disk
 
 # Non-circular domains
 include("conformal/conformal.jl")
+include("conformal/harmonic.jl")
 include("algorithms/aca.jl")
 include("domains/domain.jl")
 include("domains/ellipse.jl")

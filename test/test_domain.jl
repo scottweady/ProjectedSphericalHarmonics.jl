@@ -7,7 +7,10 @@ a, b = 1.5, 1
 M = 32
 m = 1 - (b/a)^2
 
-for (label, Ω, tolσ, tolF) in [("angle", ellipse(a, b, M), 1e-9, 1e-11), ("conformal", domain(range(0, 2π, 128)[1:end-1] .|> θ -> a*cos(θ) + im*b*sin(θ), M), 1e-3, 1e-7)]
+γₑ = range(0, 2π, 128)[1:end-1] .|> θ -> a*cos(θ) + im*b*sin(θ)
+for (label, Ω, tolσ, tolF) in [("angle", ellipse(a, b, M), 1e-9, 1e-11),
+                               ("conformal", domain(γₑ, M; map=:conformal), 1e-3, 1e-7),
+                               ("harmonic", domain(γₑ, M), 1e-9, 1e-11)]
 
   local x, y = real.(Ω.z), imag.(Ω.z)
 
@@ -68,16 +71,16 @@ let θ = range(0, 2π, 129)[1:end-1]
   @test PSH.factorization(Ω, Ω.K̂_G) === F
   @test f2 == f
   u = 𝒮_st(f, Ω)
-  check("  𝒮_st(𝒮_st⁻¹(u)) on a conformal domain: ", max(maximum(abs, u[1] .- 1), maximum(abs, u[2])), 1e-10)
+  check("  𝒮_st(𝒮_st⁻¹(u)) on a domain: ", max(maximum(abs, u[1] .- 1), maximum(abs, u[2])), 1e-10)
   σ = 𝒮⁻¹(1.0, Ω)
-  check("  𝒮(𝒮⁻¹(1)) on a conformal domain: ", maximum(abs, 𝒮(σ, Ω) .- 1), 1e-10)
+  check("  𝒮(𝒮⁻¹(1)) on a domain: ", maximum(abs, 𝒮(σ, Ω) .- 1), 1e-10)
 end
 
-# domain builds its operators column by column without forming the grid operators, with the Stokes
+# domain(γ, M; map=:conformal) builds its operators column by column without forming the grid operators, with the Stokes
 # directions from the kernels e^{±2iϕ}/r. Against the dense construction: Q Ŝ P of the disk's operators
 # times the smooth factors, with cos², sin cos, sin² of the direction rotated by the angle of the map
 let θ = range(0, 2π, 129)[1:end-1], M = 8
-  Ω = domain(1.5 .* cos.(θ) .+ im .* (sin.(θ) .+ 0.3 .* sin.(2θ)), M)
+  Ω = domain(1.5 .* cos.(θ) .+ im .* (sin.(θ) .+ 0.3 .* sin.(2θ)), M; map=:conformal)
   D = Ω.D
   even, odd = findall(vec(D.even)), findall(vec(D.odd))
   P, Q = psh_matrix(D), ipsh_matrix(D)
@@ -104,4 +107,42 @@ let θ = range(0, 2π, 129)[1:end-1], M = 8
   check("  conformal grid operators K_S, K_G vs dense construction: ",
         max(relerr(Ω.K_S, K_S), relerr(Ω.K_G[1, 1], G11), relerr(Ω.K_G[1, 2], G12), relerr(Ω.K_G[2, 2], G22)), 1e-10)
   @test Ω.K_G[2, 1] === Ω.K_G[1, 2] || Ω.K_G[2, 1] == Ω.K_G[1, 2]
+end
+
+# Harmonic maps (the default): the harmonic extension of the boundary samples
+println("Testing harmonic maps...")
+let a = 2.0, b = 0.5, t = 2π .* (0 : 255) ./ 256
+  m = 1 - (b / a)^2
+  Cex = 4π * a / ellipk(m)
+  Fex = 4π / (((2a^2 - b^2) * ellipk(m) - a^2 * ellipe(m)) / (a * (a^2 - b^2)))
+  caperr(Ω) = abs(integral(𝒮⁻¹(1.0, Ω), Ω) - Cex) / Cex
+  dragerr(Ω) = abs(integral(𝒮_st⁻¹((1.0, 0.0), Ω)[1], Ω) - Fex) / Fex
+
+  # γ = a cos t + i b sin t: the affine map, the operators of `ellipse`
+  Ω, Ωe = domain(a .* cos.(t) .+ im .* b .* sin.(t), 16), ellipse(a, b, 16)
+  check("  harmonic K̂_S vs ellipse (4:1): ", relerr(Ω.K̂_S, Ωe.K̂_S), 1e-12)
+  check("  harmonic K̂_G vs ellipse (4:1): ", maximum(relerr(Ω.K̂_G[k], Ωe.K̂_G[k]) for k in eachindex(Ωe.K̂_G)), 1e-12)
+
+  # Another parametrization: a map that is not affine, converging spectrally (the conformal map is off by ~40%)
+  s = t .+ 0.2 .* sin.(2t)
+  Ω = domain(a .* cos.(s) .+ im .* b .* sin.(s), 24)
+  check("  harmonic capacitance, 4:1 ellipse, reparametrized, M = 24: ", caperr(Ω), 1e-11)
+  check("  harmonic drag, 4:1 ellipse, reparametrized, M = 24: ", dragerr(Ω), 1e-10)
+end
+
+# Against the conformal map where that is accurate, and independent of the parametrization
+let t = 2π .* (0 : 255) ./ 256, curve(s) = (1 + 0.15cos(3s)) * cis(s)
+  cap(Ω) = integral(𝒮⁻¹(1.0, Ω), Ω)
+  drag(Ω) = integral(𝒮_st⁻¹((1.0, 0.0), Ω)[1], Ω)
+  Ωc, Ωh = domain(curve.(t), 32; map=:conformal), domain(curve.(t), 24)
+  Ωh2 = domain(curve.(t .+ 0.2 .* sin.(t)), 24)
+  check("  harmonic vs conformal, three-lobed capacitance: ", abs(cap(Ωh) - cap(Ωc)) / abs(cap(Ωc)), 1e-10)
+  check("  harmonic vs conformal, three-lobed drag: ", abs(drag(Ωh) - drag(Ωc)) / abs(drag(Ωc)), 1e-10)
+  check("  harmonic, two parametrizations, three-lobed capacitance: ", abs(cap(Ωh2) - cap(Ωh)) / abs(cap(Ωh)), 1e-10)
+end
+
+# A harmonic map that folds is an error, as is an unknown map
+let t = 2π .* (0 : 127) ./ 128
+  @test_throws ArgumentError domain((1 .+ 0.6 .* cos.(3t)) .* cis.(t), 12)
+  @test_throws ArgumentError domain(cis.(t), 8; map=:mobius)
 end

@@ -5,12 +5,12 @@ using LinearAlgebra
     Domain
 
 Discretization of a non-circular domain, the image of the unit disk under a map ``z = f(ζ)``:
-returned by `ellipse(a, b, Mℓ, Mₘ)` (an affine map) and `domain(γ, Mℓ, Mₘ)` (a conformal map).
+returned by `ellipse(a, b, Mℓ, Mₘ)` (an affine map) and `domain(γ, Mℓ, Mₘ)` (a harmonic or conformal map).
 It wraps the `Disk` of the reference grid (its fields, such as `even` and `w`, are reachable from
 the `Domain`) and adds the mapped points `z`, the area weights `dz` (with the Jacobian of the map),
 and the operators of the domain as matrices in coefficient space (`K̂_S`, `K̂_N`, `K̂_G`). Functions
 on a `Domain` are sampled at `Ω.z`; the weight `Ω.w` is the disk's, ``\\sqrt{1 - |ζ|^2}``, which
-vanishes on the boundary like the square root of the distance to it. For a conformal domain, the
+vanishes on the boundary like the square root of the distance to it. For a `domain`, the
 operators on the grid (`K_S`, `K_N`, `K_G`) are formed when accessed, as dense matrices.
 """
 struct Domain
@@ -44,25 +44,43 @@ function factorization(Ω::Domain, M)
 end
 
 """
-    domain(γ, Mℓ, Mₘ)
+    domain(γ, Mℓ, Mₘ; map=:harmonic)
+    domain(γ, M; map=:harmonic)
 
-Discretization of the image of the unit disk under a conformal map.
+Discretization of the inside of the closed curve `γ`, the image of the unit disk under a map
+``z = F(ζ)`` with ``F(e^{it}) = γ(t)``.
 
 # Arguments
-- `γ` : boundary of the domain
+- `γ` : the curve, sampled at equispaced parameter values ``t``, counterclockwise
 - `Mℓ` : maximum radial degree
 - `Mₘ` : maximum azimuthal order
+- `map` : the map from the disk
+  - `:harmonic` (default): the harmonic extension of the samples (see `harmonicmap`). The
+    parametrization of `γ` places the grid: the boundary point ``e^{it}`` of the disk goes to
+    ``γ(t)``. `γ = a cos t + i b sin t` gives the affine map of `ellipse`. One-to-one for convex
+    curves; a map that folds is an error. No hypersingular operator `𝒩`.
+  - `:conformal`: the conformal map with ``F(0) = 0`` (see `conformalmap`), which ignores the
+    parametrization. The origin must be inside the curve (not checked). It crowds the grid for
+    elongated shapes: a 4:1 ellipse gives capacitance errors of about 40% at `M = 32`.
 
 # Returns
-- Domain containing discretization information
+- Domain containing discretization information. `Ω.f` is the map; `Ω.df` is ``F′`` for the
+  conformal map and ``ζ ↦ (∂F, \\bar∂F)`` for the harmonic map.
 
 !!! warning "Experimental"
-    Conformally mapped domains are experimental: their accuracy and interface may change. The
-    curve must enclose the origin (this is not checked), convergence slows as the shape gets more
-    elongated, the operators are dense (moderate `M` only), and suspensions of such bodies have no
-    close evaluation. For ellipses, use `ellipse`.
+    Mapped domains are experimental: their accuracy and interface may change. The operators are
+    dense (moderate `M` only), and suspensions of such bodies have no close evaluation. For
+    ellipses, use `ellipse`.
 """
-function domain(γ, Mℓ::Int, Mₘ::Int)
+function domain(γ, Mℓ::Int, Mₘ::Int; map::Symbol=:harmonic)
+  map === :harmonic && return _harmonic_domain(γ, Mℓ, Mₘ)
+  map === :conformal && return _conformal_domain(γ, Mℓ, Mₘ)
+  throw(ArgumentError("map must be :harmonic or :conformal, not :$map"))
+end
+
+domain(γ, M::Int; map::Symbol=:harmonic) = domain(γ, M, M; map=map)
+
+function _conformal_domain(γ, Mℓ, Mₘ)
 
   f, df = conformalmap(γ)
   D = disk(Mℓ, Mₘ)
@@ -79,16 +97,41 @@ function domain(γ, Mℓ::Int, Mₘ::Int)
   dw = vec(D.dw)
 
   G = ConformalKernels(D, ζ, z, z′, Y, dw, even, odd)
-  K̂_S, K̂_N, K̂₁₁, K̂₁₂, K̂₂₂ = _conformal_operators(G, Y, dw, even, odd)
-  K̂_G = Matrix{Matrix{ComplexF64}}(undef, 2, 2)
-  K̂_G[1, 1], K̂_G[1, 2], K̂_G[2, 1], K̂_G[2, 2] = K̂₁₁, K̂₁₂, K̂₁₂, K̂₂₂
+  K̂_S, K̂_N, K̂_G = _domain_operators(G, Y, dw, even, odd)
 
   # The grid operators K_S, K_N and K_G are formed from G when accessed (see `getproperty`)
   return Domain(D, f, df, z, dz, G, G, G, K̂_S, K̂_N, K̂_G, nothing)
 
 end
 
-domain(γ, M::Int) = domain(γ, M, M)
+function _harmonic_domain(γ, Mℓ, Mₘ)
+
+  F, α, β = harmonicmap(γ)
+  D = disk(Mℓ, Mₘ)
+  ζ, dζ = D.ζ, D.dζ
+
+  # The Jacobian |∂F|² - |∂̄F|², on the grid and on the rim, must be positive
+  J = Float64[abs2(_harmonic_∂(α, x)) - abs2(_harmonic_∂̄(β, x)) for x in ζ]
+  Jrim = minimum(abs2(_harmonic_∂(α, x)) - abs2(_harmonic_∂̄(β, x)) for x in cis.(range(0, 2π, 8 * length(vec(γ)) + 1)))
+  min(minimum(J), Jrim) > 0 ||
+    throw(ArgumentError("the harmonic map of γ folds (its Jacobian reaches $(min(minimum(J), Jrim))): " *
+                        "reparametrize γ, or use map=:conformal"))
+
+  z = F.(ζ)
+  dz = J .* dζ
+
+  even = findall(vec(D.even))
+  Y, _ = _psh_factors(D)
+  dw = vec(D.dw)
+
+  G = HarmonicKernels(D, α, β, vec(J), Y, dw, even)
+  K̂_S, _, K̂_G = _domain_operators(G, Y, dw, even, Int[])
+
+  df(x) = (_harmonic_∂(α, x), _harmonic_∂̄(β, x))
+  # No hypersingular operator: K_N and K̂_N are empty, as for `ellipse`
+  return Domain(D, F, df, z, dz, G, [], G, K̂_S, [], K̂_G, nothing)
+
+end
 
 # ---- Singularity swapping on the grid ---------------------------------------------------------------
 # The divided difference m = (z_p - z_q)/(ζ_p - ζ_q) = ρ e^{iα} (z′ on the diagonal) relates distances and
@@ -102,9 +145,13 @@ domain(γ, M::Int) = domain(γ, M, M)
 
 const _Terms = Vector{Tuple{Vector{ComplexF64}, Array{ComplexF64, 3}}}
 
+# The kernels of a mapped domain: each provides `_kernel_column!` (a column of the grid operators), a workspace
+# for it (`_workspace`, one per thread), and whether it has the hypersingular operator
+abstract type _DomainKernels end
+
 # Tables of A, A_N, E, Ē (see `_circulants`), each a single shift: A and A_N keep the order (κ = 0), E and Ē
 # shift it by ±2, with the phases eᴱ[j] = e^{2iθⱼ} and its conjugate
-struct ConformalKernels
+struct ConformalKernels <: _DomainKernels
   Nr::Int
   Nθ::Int
   ζ::Vector{ComplexF64}
@@ -134,8 +181,11 @@ function ConformalKernels(D, ζ, z, z′, Y, dw, even, odd)
                           [cis(4π * (j - 1) / Nθ) for j = 1 : Nθ])
 end
 
-Base.show(io::IO, G::ConformalKernels) =
-  print(io, "ConformalKernels on a $(G.Nr) × $(G.Nθ) grid (grid operators formed on access)")
+Base.show(io::IO, G::_DomainKernels) =
+  print(io, "$(nameof(typeof(G))) on a $(G.Nr) × $(G.Nθ) grid (grid operators formed on access)")
+
+_workspace(::ConformalKernels) = nothing
+_has_hypersingular(::ConformalKernels) = true
 
 # Entry (p, q) of a disk grid operator from its tables, for p = (i, j), q = (i′, j′), Δ = j - j′ mod Nθ
 @inline function _circ(terms, i, j, i′, Δ)
@@ -147,7 +197,7 @@ Base.show(io::IO, G::ConformalKernels) =
 end
 
 # Column q (a source point) of the grid operators K_S, K_N, K_G[1, 1], K_G[1, 2], K_G[2, 2]
-function _kernel_column!(kS, kN, g11, g12, g22, G::ConformalKernels, q)
+function _kernel_column!(kS, kN, g11, g12, g22, G::ConformalKernels, q, ws=nothing)
   Nr, Nθ = G.Nr, G.Nθ
   i′, j′ = mod1(q, Nr), cld(q, Nr)
   ζq, zq, z′q = G.ζ[q], G.z[q], G.z′[q]
@@ -178,54 +228,256 @@ function _kernel_column!(kS, kN, g11, g12, g22, G::ConformalKernels, q)
   end
 end
 
-# The grid operators as dense matrices: K_S, K_N and the 2×2 blocks of K_G
-function _grid_matrices(G::ConformalKernels)
-  N = length(G.z)
-  KS, KN, G11, G12, G22 = (Matrix{ComplexF64}(undef, N, N) for _ = 1 : 5)
-  Threads.@threads for q = 1 : N
-    _kernel_column!(view(KS, :, q), view(KN, :, q), view(G11, :, q), view(G12, :, q), view(G22, :, q), G, q)
+# The grid operators as dense matrices: K_S, K_N (empty without the hypersingular operator) and the 2×2 blocks
+# of K_G
+function _grid_matrices(G::_DomainKernels)
+  N = G.Nr * G.Nθ
+  hyper = _has_hypersingular(G)
+  KS, G11, G12, G22 = (Matrix{ComplexF64}(undef, N, N) for _ = 1 : 4)
+  KN = hyper ? Matrix{ComplexF64}(undef, N, N) : []
+  chunks = collect(Iterators.partition(1 : N, cld(N, 4Threads.nthreads())))
+  Threads.@threads for cs in chunks
+    ws = _workspace(G)
+    bN = zeros(ComplexF64, N)
+    for q in cs
+      _kernel_column!(view(KS, :, q), hyper ? view(KN, :, q) : bN, view(G11, :, q), view(G12, :, q),
+                      view(G22, :, q), G, q, ws)
+    end
   end
   K_G = Matrix{Matrix{ComplexF64}}(undef, 2, 2)
   K_G[1, 1], K_G[1, 2], K_G[2, 1], K_G[2, 2] = G11, G12, G12, G22
   return KS, KN, K_G
 end
 
-# The operators in coefficient space, (P K Q)[idx, idx] for K_S, K_N and the blocks of K_G, without forming
-# the grid operators: each column is generated, transformed and projected (rows), then the rows of the
+# The operators in coefficient space, (P K Q)[idx, idx] for K_S, K_N (if any) and the blocks of K_G, without
+# forming the grid operators: each column is generated, transformed and projected (rows), then the rows of the
 # result are transformed and projected (columns)
-function _conformal_operators(G::ConformalKernels, Y, dw, even, odd)
+function _domain_operators(G::_DomainKernels, Y, dw, even, odd)
 
   Nr, _, Nθ = size(Y)
   N = Nr * Nθ
+  hyper = _has_hypersingular(G)
   Yₑ, nmₑ = _mode_basis(Y, even)
   Yₒ, nmₒ = _mode_basis(Y, odd)
   Rₑ, Rₒ = Yₑ .* dw, Yₒ .* dw
 
   # Rows, stored transposed: Tᵀ[q, p] = (P K)[idx[p], q]
   TS, T11, T12, T22 = (Matrix{ComplexF64}(undef, N, length(even)) for _ = 1 : 4)
-  TN = Matrix{ComplexF64}(undef, N, length(odd))
+  TN = Matrix{ComplexF64}(undef, N, hyper ? length(odd) : 0)
 
   plan = plan_fft!(zeros(ComplexF64, Nr, Nθ), 2; flags=FFTW.ESTIMATE | FFTW.UNALIGNED)
   chunks = collect(Iterators.partition(1 : N, cld(N, 4Threads.nthreads())))
   Threads.@threads for cs in chunks
+    ws = _workspace(G)
     bS, bN, b11, b12, b22 = (zeros(ComplexF64, Nr, Nθ) for _ = 1 : 5)
     for q in cs
-      _kernel_column!(bS, bN, b11, b12, b22, G, q)
-      for b in (bS, bN, b11, b12, b22)
+      _kernel_column!(bS, bN, b11, b12, b22, G, q, ws)
+      for b in (bS, b11, b12, b22)
         plan * b
       end
       _project!(TS, q, bS, Rₑ, nmₑ, true, true)
-      _project!(TN, q, bN, Rₒ, nmₒ, true, true)
       _project!(T11, q, b11, Rₑ, nmₑ, true, true)
       _project!(T12, q, b12, Rₑ, nmₑ, true, true)
       _project!(T22, q, b22, Rₑ, nmₑ, true, true)
+      if hyper
+        plan * bN
+        _project!(TN, q, bN, Rₒ, nmₒ, true, true)
+      end
     end
   end
 
   # Columns: row p of P K is column p of Tᵀ, and the result is written transposed back
   cols(T, Yc, nms) = _transform_columns(T, Yc, nms, Nr, Nθ, false, true)
-  return cols(TS, Yₑ, nmₑ), cols(TN, Yₒ, nmₒ), cols(T11, Yₑ, nmₑ), cols(T12, Yₑ, nmₑ), cols(T22, Yₑ, nmₑ)
+  K̂_G = Matrix{Matrix{ComplexF64}}(undef, 2, 2)
+  K̂_G[1, 1], K̂_G[1, 2], K̂_G[2, 2] = cols(T11, Yₑ, nmₑ), cols(T12, Yₑ, nmₑ), cols(T22, Yₑ, nmₑ)
+  K̂_G[2, 1] = K̂_G[1, 2]
+  return cols(TS, Yₑ, nmₑ), (hyper ? cols(TN, Yₒ, nmₒ) : []), K̂_G
 
+end
+
+# ---- Harmonic maps ----------------------------------------------------------------------------------
+# For a smooth map F that is not conformal, Δz = P Δζ + Q conj(Δζ) with the Wirtinger divided differences P, Q
+# (smooth), so with μ = Q/P and ϕ the angle of Δζ on the disk,
+#   1/|Δz|        = (1/|P|)    g₀(ϕ)/|Δζ|,   g₀ = |1 + μe^{-2iϕ}|⁻¹,
+#   e^{2iψ}/|Δz|  = (P²/|P|³)  g₊(ϕ)/|Δζ|,   g₊ = e^{2iϕ}(1 + μe^{-2iϕ})²/|1 + μe^{-2iϕ}|³,
+#   e^{-2iψ}/|Δz| = (P̄²/|P|³)  g₋(ϕ)/|Δζ|,   g₋ = conj(g₊),
+# with ψ the direction of Δz. Each g = Σₖ cₖ e^{2ikϕ}, and the operators are Σₖ cₖ(μ) times the disk's grid
+# operators of e^{2ikϕ}/|Δζ| (single shifts 2k, |k| ≤ Mₘ), times J/|P| and the phases. A conformal map is μ = 0;
+# an affine one, constant μ (the ellipse).
+#
+# With z = e^{-2iϕ}, g₀ = (1 + μz)^{-1/2} (1 + μ̄/z)^{-1/2} and g₊ = z⁻¹ (1 + μz)^{1/2} (1 + μ̄/z)^{-3/2}, so with
+# the binomial coefficients aⱼ, bⱼ, cⱼ of the powers -1/2, 1/2, -3/2 and s = |μ|²,
+#   c⁰ₖ = μ̄ᵏ H⁰ₖ(s) (k ≥ 0, and c⁰₋ₖ = conj(c⁰ₖ)),           H⁰ₙ = Σⱼ aⱼ aⱼ₊ₙ sʲ,
+#   c⁺ₖ = μ̄ᵏ⁻¹ H⁺ₖ₋₁(s) (k ≥ 1),  c⁺ₖ = μ¹⁻ᵏ H⁻₁₋ₖ(s) (k ≤ 0),  H⁺ₙ = Σⱼ bⱼ cⱼ₊ₙ sʲ,  H⁻ₙ = Σⱼ bⱼ₊ₙ cⱼ sʲ,
+#   c⁻ₖ = conj(c⁺₋ₖ).
+# The H are smooth on [0, max |μ|²] (singular at s = 1, a fold), so they are interpolated there by one Chebyshev
+# series each, evaluated together for each pair.
+struct HarmonicKernels <: _DomainKernels
+  Nr::Int
+  Nθ::Int
+  ζ::Vector{ComplexF64}
+  α::Vector{ComplexF64}
+  β::Vector{ComplexF64}
+  J::Vector{Float64}
+  ks::Vector{Int}                       # the k with a nonempty disk operator, |k| ≤ K
+  phases::Vector{Vector{ComplexF64}}    # e^{2ikθⱼ} of each
+  C::Vector{Array{ComplexF64, 3}}       # and its table
+  K::Int
+  smax::Float64                         # the H are interpolated on s ∈ [0, smax]
+  cheb::Matrix{Float64}                 # Chebyshev coefficients: cheb[h, d + 1] of degree d for H number h
+end
+
+# H number h: H⁰ₙ is h = n + 1 (n = 0 … K), H⁺ₙ is K + 2 + n (n = 0 … K - 1), H⁻ₙ is 2K + 1 + n (n = 1 … K + 1)
+_nH(K) = 3K + 2
+
+# The disk operators of e^{2ikϕ}/|ζ - η|, which depend only on the grid: built once per (Mℓ, Mₘ)
+const _HARMONIC_TABLES = Dict{Tuple{Int, Int}, Any}()
+const _HARMONIC_TABLES_LOCK = ReentrantLock()
+
+function _harmonic_tables(D, Y, dw, even)
+  lock(_HARMONIC_TABLES_LOCK) do
+    get!(_HARMONIC_TABLES, (D.Mℓ, D.Mₘ)) do
+      Mₘ = D.Mₘ
+      Nf = nextpow(2, 4Mₘ + 4)
+      ks, phases, C = Int[], Vector{ComplexF64}[], Array{ComplexF64, 3}[]
+      for k = -Mₘ : Mₘ
+        ĝ = zeros(ComplexF64, Nf)
+        ĝ[mod(2k, Nf) + 1] = 1
+        terms = _circulants(laplace3d_angular_matrix(ĝ, D.Lspan, D.Mspan, even), even, Y, dw)
+        isempty(terms) && continue
+        length(terms) == 1 || error("expected the operator of e^{2ikϕ}/r to shift the order by 2k (k = $k)")
+        push!(ks, k); push!(phases, terms[1][1]); push!(C, terms[1][2])
+      end
+      (ks, phases, C)
+    end
+  end
+end
+
+# The series H at s, from their power series (for the interpolation)
+function _harmonic_H(K, s)
+  L = s < 1e-300 ? 1 : ceil(Int, log(1e-18) / log(s)) + 40
+  binom(p, n) = (c = ones(n + 1); for j = 1 : n; c[j + 1] = c[j] * (p - j + 1) / j; end; c)
+  a, b, c = binom(-0.5, L + K + 2), binom(0.5, L + K + 2), binom(-1.5, L + K + 2)
+  H = zeros(_nH(K))
+  for j = L : -1 : 0                      # smallest terms first
+    sʲ = s^j
+    for n = 0 : K
+      H[n + 1] += a[j + 1] * a[j + n + 1] * sʲ
+    end
+    for n = 0 : K - 1
+      H[K + 2 + n] += b[j + 1] * c[j + n + 1] * sʲ
+    end
+    for n = 1 : K + 1
+      H[2K + 1 + n] += b[j + n + 1] * c[j + 1] * sʲ
+    end
+  end
+  return H
+end
+
+# Chebyshev coefficients of the H on [0, smax], to the degree at which they have decayed to rounding
+function _harmonic_chebyshev(K, smax)
+  for d in (16, 32, 64, 128, 256)
+    θs = π .* ((0 : d) .+ 0.5) ./ (d + 1)
+    Hs = [_harmonic_H(K, smax * (1 + cos(θ)) / 2) for θ in θs]
+    cheb = [(m == 0 ? 1 : 2) / (d + 1) * sum(Hs[i][h] * cos(m * θs[i]) for i = 1 : d + 1) for h = 1 : _nH(K), m = 0 : d]
+    scale = maximum(abs, cheb)
+    tail = maximum(abs, cheb[:, end - 1 : end])
+    # The values carry rounding errors of about 1e-16 relative, so the coefficients level off there
+    (tail < 1e-14 * scale || d == 256) && return cheb[:, 1 : something(findlast(m -> maximum(abs, cheb[:, m]) > 1e-16 * scale, 1 : d + 1), 1)]
+  end
+end
+
+function HarmonicKernels(D, α, β, J, Y, dw, even)
+
+  Nr, _, Nθ = size(Y)
+  ζ = vec(D.ζ)
+  N = length(ζ)
+
+  # The largest |μ| over all pairs: the interval of the interpolation; |μ| ≥ 1 is a fold
+  μmax = zeros(N)
+  Threads.@threads for q = 1 : N
+    for p = 1 : N
+      P, Q = _wirtinger_dd(α, β, ζ[p], ζ[q])
+      μmax[q] = max(μmax[q], abs2(Q / P))
+    end
+  end
+  smax = maximum(μmax)
+  smax < 1 || throw(ArgumentError("the harmonic map of γ folds (|μ| = $(sqrt(smax)) ≥ 1 between two grid points): " *
+                                  "reparametrize γ, or use map=:conformal"))
+  smax = max(smax * (1 + 1e-12), 1e-8)
+
+  ks, phases, C = _harmonic_tables(D, Y, dw, even)
+  K = maximum(abs, ks)
+  return HarmonicKernels(Nr, Nθ, ζ, α, β, J, ks, phases, C, K, smax, _harmonic_chebyshev(K, smax))
+
+end
+
+_workspace(G::HarmonicKernels) = (zeros(_nH(G.K)), zeros(_nH(G.K)), zeros(_nH(G.K)), zeros(ComplexF64, G.K + 2))
+_has_hypersingular(::HarmonicKernels) = false
+
+# The H at s (into H), by Clenshaw's recurrence for all the series at once
+@inline function _clenshaw!(H, b₁, b₂, cheb, x)
+  nH, n = size(cheb)
+  fill!(b₁, 0.0); fill!(b₂, 0.0)
+  @inbounds for m = n : -1 : 2
+    @simd for h = 1 : nH
+      b = cheb[h, m] + 2x * b₁[h] - b₂[h]
+      b₂[h] = b₁[h]
+      b₁[h] = b
+    end
+  end
+  @inbounds @simd for h = 1 : nH
+    H[h] = cheb[h, 1] + x * b₁[h] - b₂[h]
+  end
+  return H
+end
+
+# Column q (a source point) of the grid operators K_S, K_G[1, 1], K_G[1, 2], K_G[2, 2] (kN is not written)
+function _kernel_column!(kS, kN, g11, g12, g22, G::HarmonicKernels, q, ws)
+  H, b₁, b₂, μⁿ = ws
+  Nr, Nθ, K = G.Nr, G.Nθ, G.K
+  η = G.ζ[q]
+  i′, j′ = mod1(q, Nr), cld(q, Nr)
+  J = G.J[q]
+  @inbounds for j = 1 : Nθ
+    Δ = mod(j - j′, Nθ) + 1
+    for i = 1 : Nr
+      p = i + (j - 1) * Nr
+      P, Q = _wirtinger_dd(G.α, G.β, G.ζ[p], η)
+      μ = Q / P
+      _clenshaw!(H, b₁, b₂, G.cheb, 2abs2(μ) / G.smax - 1)
+      μⁿ[1] = 1
+      for n = 1 : K + 1
+        μⁿ[n + 1] = μⁿ[n] * μ
+      end
+      s₀ = s₊ = s₋ = zero(ComplexF64)
+      for t in eachindex(G.ks)
+        k = G.ks[t]
+        a = G.phases[t][j] * G.C[t][i, i′, Δ]
+        if k >= 0
+          c₀ = conj(μⁿ[k + 1]) * H[k + 1]
+          c₊ = k >= 1 ? conj(μⁿ[k]) * H[K + 1 + k] : μⁿ[2] * H[2K + 2]
+          c₋ = conj(μⁿ[k + 2]) * H[2K + 2 + k]
+        else
+          c₀ = μⁿ[1 - k] * H[1 - k]
+          c₊ = μⁿ[2 - k] * H[2K + 2 - k]
+          c₋ = μⁿ[-k] * H[K + 1 - k]
+        end
+        s₀ += c₀ * a
+        s₊ += c₊ * a
+        s₋ += c₋ * a
+      end
+      h = J / abs(P)
+      P̂² = P^2 / abs2(P)
+      s = h * s₀
+      e = h * P̂² * s₊
+      ē = h * conj(P̂²) * s₋
+      kS[p] = s
+      g11[p] = 1.5 * s + (e + ē) / 4
+      g22[p] = 1.5 * s - (e + ē) / 4
+      g12[p] = (e - ē) * (-im / 4)
+    end
+  end
 end
 
 # ---- The transforms from their factors --------------------------------------------------------------
@@ -349,7 +601,7 @@ const _domain_fields = fieldnames(Domain)
 function Base.getproperty(Ω::Domain, s::Symbol)
   if s === :K_S || s === :K_N || s === :K_G
     K = getfield(Ω, s)
-    K isa ConformalKernels || return K
+    K isa _DomainKernels || return K
     K_S, K_N, K_G = _grid_matrices(K)
     return s === :K_S ? K_S : s === :K_N ? K_N : K_G
   end
