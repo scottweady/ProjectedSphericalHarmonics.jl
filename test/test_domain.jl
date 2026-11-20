@@ -143,6 +143,48 @@ end
 
 # A harmonic map that folds is an error, as is an unknown map
 let t = 2π .* (0 : 127) ./ 128
-  @test_throws ArgumentError domain((1 .+ 0.6 .* cos.(3t)) .* cis.(t), 12)
+  @test_throws ArgumentError domain((1 .+ 0.6 .* cos.(3t)) .* cis.(t), 12; map=:harmonic)
   @test_throws ArgumentError domain(cis.(t), 8; map=:mobius)
+end
+
+# Winslow maps: the inverse map is harmonic, one-to-one for non-convex shapes
+println("Testing Winslow maps...")
+let t = 2π .* (0 : 255) ./ 256
+  cap(Ω) = integral(𝒮⁻¹(1.0, Ω), Ω)
+  drag(Ω) = integral(𝒮_st⁻¹((1.0, 0.0), Ω)[1], Ω)
+  torque(Ω) = (x = real.(Ω.z); y = imag.(Ω.z); f = 𝒮_st⁻¹((-y, x), Ω); integral(-y .* f[1] .+ x .* f[2], Ω))
+
+  # The map: its derivatives, and its mean-value divided differences are exact
+  pinwheel(s) = (r = 1 + 0.3cos(5s); r * cis(s + 0.6(r - 1)))
+  F = PSH.winslowmap(pinwheel.(t))
+  check("  Winslow map reproduces the boundary: ", maximum(abs.(F(cis.(t)) .- pinwheel.(t))), 1e-8)
+  x, h = 0.6 + 0.3im, 1e-6
+  fdx, fdy = (F(x + h) - F(x - h)) / 2h, (F(x + im * h) - F(x - im * h)) / 2h
+  a, b = PSH._derivatives(F, [x])
+  check("  Winslow map ∂F, ∂̄F vs finite differences: ", max(abs(a[1] - (fdx - im * fdy) / 2), abs(b[1] - (fdx + im * fdy) / 2)), 1e-8)
+  ζ = vec(disk(6).ζ); P, Q = PSH._mean_value_tables(F, ζ); Fζ = F(ζ)
+  check("  Winslow mean values: F(ζ) - F(η) = PΔζ + Q conj(Δζ): ",
+        maximum(abs(Fζ[p] - Fζ[q] - (P[p, q] * (ζ[p] - ζ[q]) + Q[p, q] * conj(ζ[p] - ζ[q]))) for p in eachindex(ζ), q in eachindex(ζ)), 1e-13)
+
+  # 4:1 ellipse sampled as a cos t + i b sin t: the Winslow map is affine, the operators those of `ellipse`
+  Ω, Ωe = domain(2 .* cos.(t) .+ 0.5im .* sin.(t), 12; map=:winslow), ellipse(2.0, 0.5, 12)
+  check("  Winslow K̂_S, K̂_G vs ellipse (4:1): ", max(relerr(Ω.K̂_S, Ωe.K̂_S), maximum(relerr(Ω.K̂_G[k], Ωe.K̂_G[k]) for k in eachindex(Ωe.K̂_G))), 1e-10)
+
+  # The bean, against the harmonic map
+  bean(s) = (1.2cos(s) - 0.15cos(2s)) + im * (0.8sin(s) + 0.45sin(s)^2 * (1 - cos(s)))
+  Ωw, Ωh = domain(bean.(t), 16; map=:winslow), domain(bean.(t), 24)
+  check("  Winslow vs harmonic, bean capacitance: ", abs(cap(Ωw) - cap(Ωh)) / abs(cap(Ωh)), 1e-8)
+  check("  Winslow vs harmonic, bean drag: ", abs(drag(Ωw) - drag(Ωh)) / abs(drag(Ωh)), 1e-8)
+
+  # A chiral pinwheel, on which the harmonic map folds: against M = 32 (capacitance, drag, torque). The default map
+  # (:auto) falls back to the Winslow map there, and keeps the harmonic map where it does not fold
+  @test_throws ArgumentError domain(pinwheel.(t), 16; map=:harmonic)
+  Ωa = @test_logs (:info, r"Winslow") domain(pinwheel.(t), 12)
+  @test getfield(Ωa, :K_S).map isa PSH._TabulatedDD
+  @test Ωa.K̂_S ≈ domain(pinwheel.(t), 12; map=:winslow).K̂_S
+  @test getfield(@test_logs(domain(bean.(t), 12)), :K_S).map isa PSH._HarmonicMap
+  Ω = domain(pinwheel.(t), 24; map=:winslow)
+  ref = (8.7611126079, 5.8769088666, 7.9022226086)
+  check("  Winslow pinwheel, M = 24 vs M = 32: ",
+        maximum(abs.((cap(Ω), drag(Ω), torque(Ω)) .- ref) ./ ref), 1e-5)
 end

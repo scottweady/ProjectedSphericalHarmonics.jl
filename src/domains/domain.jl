@@ -44,8 +44,8 @@ function factorization(Ω::Domain, M)
 end
 
 """
-    domain(γ, Mℓ, Mₘ; map=:harmonic)
-    domain(γ, M; map=:harmonic)
+    domain(γ, Mℓ, Mₘ; map=:auto)
+    domain(γ, M; map=:auto)
 
 Discretization of the inside of the closed curve `γ`, the image of the unit disk under a map
 ``z = F(ζ)`` with ``F(e^{it}) = γ(t)``.
@@ -55,30 +55,44 @@ Discretization of the inside of the closed curve `γ`, the image of the unit dis
 - `Mℓ` : maximum radial degree
 - `Mₘ` : maximum azimuthal order
 - `map` : the map from the disk
-  - `:harmonic` (default): the harmonic extension of the samples (see `harmonicmap`). The
+  - `:auto` (default): the harmonic map, or the Winslow map if the harmonic map folds (with a
+    message)
+  - `:harmonic`: the harmonic extension of the samples (see `harmonicmap`). The
     parametrization of `γ` places the grid: the boundary point ``e^{it}`` of the disk goes to
     ``γ(t)``. `γ = a cos t + i b sin t` gives the affine map of `ellipse`. One-to-one for convex
     curves; a map that folds is an error. No hypersingular operator `𝒩`.
+  - `:winslow`: the Winslow (elliptic grid generation) map, whose inverse is harmonic (see
+    `winslowmap`). One-to-one for any smooth simply connected domain, so it handles non-convex
+    shapes on which the harmonic map folds, at a higher cost to build (seconds at `M = 16`). The
+    parametrization of `γ` places the grid, as for `:harmonic`. Strongly deformed shapes are an
+    error. No hypersingular operator `𝒩`.
   - `:conformal`: the conformal map with ``F(0) = 0`` (see `conformalmap`), which ignores the
     parametrization. The origin must be inside the curve (not checked). It crowds the grid for
     elongated shapes: a 4:1 ellipse gives capacitance errors of about 40% at `M = 32`.
 
 # Returns
 - Domain containing discretization information. `Ω.f` is the map; `Ω.df` is ``F′`` for the
-  conformal map and ``ζ ↦ (∂F, \\bar∂F)`` for the harmonic map.
+  conformal map and ``ζ ↦ (∂F, \\bar∂F)`` for the harmonic and Winslow maps.
 
 !!! warning "Experimental"
     Mapped domains are experimental: their accuracy and interface may change. The operators are
     dense (moderate `M` only), and suspensions of such bodies have no close evaluation. For
     ellipses, use `ellipse`.
 """
-function domain(γ, Mℓ::Int, Mₘ::Int; map::Symbol=:harmonic)
+function domain(γ, Mℓ::Int, Mₘ::Int; map::Symbol=:auto)
+  if map === :auto
+    Ω = _harmonic_domain(γ, Mℓ, Mₘ; onfold=:nothing)
+    Ω === nothing || return Ω
+    @info "domain: the harmonic map of γ folds; using the Winslow map (map = :winslow)"
+    return _winslow_domain(γ, Mℓ, Mₘ)
+  end
   map === :harmonic && return _harmonic_domain(γ, Mℓ, Mₘ)
+  map === :winslow && return _winslow_domain(γ, Mℓ, Mₘ)
   map === :conformal && return _conformal_domain(γ, Mℓ, Mₘ)
-  throw(ArgumentError("map must be :harmonic or :conformal, not :$map"))
+  throw(ArgumentError("map must be :auto, :harmonic, :winslow or :conformal, not :$map"))
 end
 
-domain(γ, M::Int; map::Symbol=:harmonic) = domain(γ, M, M; map=map)
+domain(γ, M::Int; map::Symbol=:auto) = domain(γ, M, M; map=map)
 
 function _conformal_domain(γ, Mℓ, Mₘ)
 
@@ -104,7 +118,8 @@ function _conformal_domain(γ, Mℓ, Mₘ)
 
 end
 
-function _harmonic_domain(γ, Mℓ, Mₘ)
+# A harmonic map that folds is an ArgumentError, or nothing with onfold = :nothing (for map = :auto)
+function _harmonic_domain(γ, Mℓ, Mₘ; onfold=:throw)
 
   F, α, β = harmonicmap(γ)
   D = disk(Mℓ, Mₘ)
@@ -113,9 +128,11 @@ function _harmonic_domain(γ, Mℓ, Mₘ)
   # The Jacobian |∂F|² - |∂̄F|², on the grid and on the rim, must be positive
   J = Float64[abs2(_harmonic_∂(α, x)) - abs2(_harmonic_∂̄(β, x)) for x in ζ]
   Jrim = minimum(abs2(_harmonic_∂(α, x)) - abs2(_harmonic_∂̄(β, x)) for x in cis.(range(0, 2π, 8 * length(vec(γ)) + 1)))
-  min(minimum(J), Jrim) > 0 ||
+  if min(minimum(J), Jrim) <= 0
+    onfold === :nothing && return nothing
     throw(ArgumentError("the harmonic map of γ folds (its Jacobian reaches $(min(minimum(J), Jrim))): " *
-                        "reparametrize γ, or use map=:conformal"))
+                        "use map=:winslow, or reparametrize γ"))
+  end
 
   z = F.(ζ)
   dz = J .* dζ
@@ -124,11 +141,43 @@ function _harmonic_domain(γ, Mℓ, Mₘ)
   Y, _ = _psh_factors(D)
   dw = vec(D.dw)
 
-  G = HarmonicKernels(D, α, β, vec(J), Y, dw, even)
+  G = MappedKernels(D, _HarmonicMap(α, β), vec(J), Y, dw, even; name="harmonic map", onfold)
+  G === nothing && return nothing
   K̂_S, _, K̂_G = _domain_operators(G, Y, dw, even, Int[])
 
   df(x) = (_harmonic_∂(α, x), _harmonic_∂̄(β, x))
   # No hypersingular operator: K_N and K̂_N are empty, as for `ellipse`
+  return Domain(D, F, df, z, dz, G, [], G, K̂_S, [], K̂_G, nothing)
+
+end
+
+function _winslow_domain(γ, Mℓ, Mₘ)
+
+  F = winslowmap(γ)
+  D = disk(Mℓ, Mₘ)
+  ζ, dζ = D.ζ, D.dζ
+
+  # The Jacobian of the computed map on the grid (and near the rim) must be positive
+  function jac(x)
+    a, b = _derivatives(F, x)
+    return abs2.(a) .- abs2.(b)
+  end
+  J = reshape(jac(vec(ζ)), size(ζ))
+  Jrim = minimum(jac(0.999 .* cis.(range(0, 2π, 8 * length(vec(γ)) + 1))))
+  min(minimum(J), Jrim) > 0 ||
+    throw(ArgumentError("the Winslow map of γ is not resolved (its Jacobian reaches $(min(minimum(J), Jrim)))"))
+
+  z = F(ζ)
+  dz = J .* dζ
+
+  even = findall(vec(D.even))
+  Y, _ = _psh_factors(D)
+  dw = vec(D.dw)
+
+  G = MappedKernels(D, _TabulatedDD(_mean_value_tables(F, vec(ζ))...), vec(J), Y, dw, even; name="Winslow map")
+  K̂_S, _, K̂_G = _domain_operators(G, Y, dw, even, Int[])
+
+  df(x) = (∂(F, x), ∂̄(F, x))
   return Domain(D, F, df, z, dz, G, [], G, K̂_S, [], K̂_G, nothing)
 
 end
@@ -312,12 +361,14 @@ end
 #   c⁻ₖ = conj(c⁺₋ₖ).
 # The H are smooth on [0, max |μ|²] (singular at s = 1, a fold), so they are interpolated there by one Chebyshev
 # series each, evaluated together for each pair.
-struct HarmonicKernels <: _DomainKernels
+#
+# The map provides P, Q for the grid points p, q (`_divdiff`, with a workspace from `_map_workspace`): the harmonic map
+# (`_HarmonicMap`) by its coefficients, the Winslow map (`winslowmap`) by tables of mean values (`_TabulatedDD`).
+struct MappedKernels{T} <: _DomainKernels
   Nr::Int
   Nθ::Int
   ζ::Vector{ComplexF64}
-  α::Vector{ComplexF64}
-  β::Vector{ComplexF64}
+  map::T
   J::Vector{Float64}
   ks::Vector{Int}                       # the k with a nonempty disk operator, |k| ≤ K
   phases::Vector{Vector{ComplexF64}}    # e^{2ikθⱼ} of each
@@ -387,33 +438,45 @@ function _harmonic_chebyshev(K, smax)
   end
 end
 
-function HarmonicKernels(D, α, β, J, Y, dw, even)
+function MappedKernels(D, map, J, Y, dw, even; name="map", onfold=:throw)
 
   Nr, _, Nθ = size(Y)
   ζ = vec(D.ζ)
   N = length(ζ)
 
-  # The largest |μ| over all pairs: the interval of the interpolation; |μ| ≥ 1 is a fold
+  # The largest |μ| over all pairs: the interval of the interpolation. |μ| ≥ 1 for some pair: the expansion in
+  # e^{2ikϕ} does not converge there (for the harmonic map, a fold)
   μmax = zeros(N)
   Threads.@threads for q = 1 : N
+    mws = _map_workspace(map)
     for p = 1 : N
-      P, Q = _wirtinger_dd(α, β, ζ[p], ζ[q])
+      P, Q = _divdiff(map, p, q, ζ[p], ζ[q], mws)
       μmax[q] = max(μmax[q], abs2(Q / P))
     end
   end
   smax = maximum(μmax)
-  smax < 1 || throw(ArgumentError("the harmonic map of γ folds (|μ| = $(sqrt(smax)) ≥ 1 between two grid points): " *
-                                  "reparametrize γ, or use map=:conformal"))
+  smax < 1 || onfold !== :nothing || return nothing
+  smax < 1 || throw(ArgumentError("the $name of γ is too deformed (|μ| = $(sqrt(smax)) ≥ 1 between two grid points): " *
+                                  "use a less deformed curve or another map"))
   smax = max(smax * (1 + 1e-12), 1e-8)
 
   ks, phases, C = _harmonic_tables(D, Y, dw, even)
   K = maximum(abs, ks)
-  return HarmonicKernels(Nr, Nθ, ζ, α, β, J, ks, phases, C, K, smax, _harmonic_chebyshev(K, smax))
+  return MappedKernels(Nr, Nθ, ζ, map, J, ks, phases, C, K, smax, _harmonic_chebyshev(K, smax))
 
 end
 
-_workspace(G::HarmonicKernels) = (zeros(_nH(G.K)), zeros(_nH(G.K)), zeros(_nH(G.K)), zeros(ComplexF64, G.K + 2))
-_has_hypersingular(::HarmonicKernels) = false
+_workspace(G::MappedKernels) = (zeros(_nH(G.K)), zeros(_nH(G.K)), zeros(_nH(G.K)), zeros(ComplexF64, G.K + 2),
+                                _map_workspace(G.map))
+_has_hypersingular(::MappedKernels) = false
+
+# The harmonic map, by the Wirtinger divided differences of its coefficients
+struct _HarmonicMap
+  α::Vector{ComplexF64}
+  β::Vector{ComplexF64}
+end
+_divdiff(m::_HarmonicMap, p, q, ζ, η, mws) = _wirtinger_dd(m.α, m.β, ζ, η)
+_map_workspace(::_HarmonicMap) = nothing
 
 # The H at s (into H), by Clenshaw's recurrence for all the series at once
 @inline function _clenshaw!(H, b₁, b₂, cheb, x)
@@ -433,8 +496,8 @@ _has_hypersingular(::HarmonicKernels) = false
 end
 
 # Column q (a source point) of the grid operators K_S, K_G[1, 1], K_G[1, 2], K_G[2, 2] (kN is not written)
-function _kernel_column!(kS, kN, g11, g12, g22, G::HarmonicKernels, q, ws)
-  H, b₁, b₂, μⁿ = ws
+function _kernel_column!(kS, kN, g11, g12, g22, G::MappedKernels, q, ws)
+  H, b₁, b₂, μⁿ, mws = ws
   Nr, Nθ, K = G.Nr, G.Nθ, G.K
   η = G.ζ[q]
   i′, j′ = mod1(q, Nr), cld(q, Nr)
@@ -443,7 +506,7 @@ function _kernel_column!(kS, kN, g11, g12, g22, G::HarmonicKernels, q, ws)
     Δ = mod(j - j′, Nθ) + 1
     for i = 1 : Nr
       p = i + (j - 1) * Nr
-      P, Q = _wirtinger_dd(G.α, G.β, G.ζ[p], η)
+      P, Q = _divdiff(G.map, p, q, G.ζ[p], η, mws)
       μ = Q / P
       _clenshaw!(H, b₁, b₂, G.cheb, 2abs2(μ) / G.smax - 1)
       μⁿ[1] = 1
