@@ -92,8 +92,9 @@ maximum(abs.(u .- (1 .- abs2.(D.z)) ./ 4))     # 4e-15
 ## Non-circular domains
 
 The same operators work on an ellipse and on a domain bounded by a smooth curve. `ellipse(a, b, M)` maps the disk
-affinely onto the ellipse with semi-axes `a` and `b`. `domain(γ, M)` maps it conformally onto the inside of a closed
-curve, given by samples `γ` at equispaced parameter values, counterclockwise, with the origin inside the curve:
+affinely onto the ellipse with semi-axes `a` and `b`. `domain(γ, M)` maps it onto the inside of a closed curve,
+given by samples `γ` at equispaced parameter values, counterclockwise, by the harmonic extension of the samples
+(`map = :conformal` gives the conformal map):
 
 ```julia
 Ω = ellipse(1.5, 1.0, 32)
@@ -107,11 +108,11 @@ integral(σ, Ω)                     # the ellipse's capacitance, 4πa/K(1 - b²
 
 !!! warning "Experimental"
     `domain` is experimental: its accuracy and interface may change. See
-    [Conformally mapped domains](@ref method-domains) for what is known not to work yet.
+    [Mapped domains](@ref method-domains) for what is known not to work yet.
 
 `Ω.z` holds the mapped grid points and `Ω.dz` the area weights. The weight `Ω.w` is still the disk's
 ``\sqrt{1 - |\zeta|^2}``, which vanishes on the boundary of ``\Omega`` like the square root of the distance to it.
-The ellipse's operators are sparse in coefficient space. The conformal domain's are dense, which limits it to
+The ellipse's operators are sparse in coefficient space. A mapped domain's are dense, which limits it to
 moderate `M`; see [Non-circular domains](@ref method-domains).
 
 ## Stokes flow

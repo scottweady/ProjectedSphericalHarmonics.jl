@@ -34,15 +34,57 @@ the disk's, since ``1/\rho(\phi)`` has infinitely many Fourier modes. The number
 The ellipse also stores the Fourier coefficients of ``A_0`` (`Ω.ext`, an `EllipseGeometry`), which the
 [close evaluation](@ref method-suspensions) between bodies uses.
 
-## Conformally mapped domains
+## Mapped domains
 
 !!! warning "Experimental"
-    Conformally mapped domains are experimental: their accuracy and interface may change. The limits below (the
-    origin must be inside the curve, slower convergence for elongated shapes, dense operators, no close evaluation
-    between bodies) are known, and not yet addressed. For ellipses, use `ellipse`.
+    Mapped domains (`domain`) are experimental: their accuracy and interface may change. Their operators are
+    dense, and there is no close evaluation between bodies. For ellipses, use `ellipse`.
 
-`domain(γ, Mℓ, Mₘ)` maps the disk conformally onto the inside of a closed curve. `γ` is the curve sampled at
-equispaced parameter values, counterclockwise. The map ``f`` is computed from the samples in three steps:
+`domain(γ, Mℓ, Mₘ; map)` discretizes the inside of a closed curve, the image of the disk under a smooth map ``F``
+with ``F(e^{it}) = \gamma(t)``. `γ` is the curve sampled at equispaced parameter values, counterclockwise.
+
+**The harmonic map** (`map = :harmonic`, the default) is the harmonic extension of the samples: with ``\gamma(t) =
+\sum_n \hat\gamma_n e^{int}``,
+
+```math
+F(\zeta) = \sum_{n \ge 0} \hat\gamma_n \zeta^n + \sum_{n \ge 1} \hat\gamma_{-n} \bar\zeta^n.
+```
+
+The parametrization of `γ` places the grid: the disk's boundary point ``e^{it}`` goes to ``\gamma(t)``, and the
+grid follows. For ``\gamma = a\cos t + i b \sin t`` the map is affine, and `domain` gives the operators of
+`ellipse(a, b, M)`. By the Radó–Kneser–Choquet theorem the map is one-to-one when the curve is convex. A
+non-convex curve may make it fold; `domain` checks the Jacobian and throws an `ArgumentError` if it does.
+
+The map is not conformal, so the distance on ``\Omega`` depends on the direction as well as the distance on the
+disk. With the Wirtinger divided differences ``F(\zeta) - F(\eta) = P\,(\zeta - \eta) + Q\,\overline{(\zeta -
+\eta)}``, both smooth, and ``\mu = Q/P``,
+
+```math
+\frac{1}{|F(\zeta) - F(\eta)|} = \frac{1}{|P|}\,\frac{1}{|1 + \mu e^{-2i\phi}|}\,\frac{1}{|\zeta - \eta|},
+```
+
+with ``\phi`` the angle of ``\zeta - \eta``. The angular factor is a Fourier series in ``e^{2ik\phi}``, with
+coefficients ``\mu^{|k|}`` or ``\bar\mu^{|k|}`` times functions of ``|\mu|^2``, interpolated once per domain. So
+the single layer is a sum over ``k`` of smooth coefficients times the disk operators of the kernels
+``e^{2ik\phi}/|\zeta - \eta|``. The Stokes kernels expand the same way. The conformal map is the case ``\mu = 0``,
+one term; the affine map has constant ``\mu``. The operators of a harmonic domain cost more to build than those of
+a conformal one, as each pair of grid points sums ``2M_m + 1`` terms. There is no hypersingular operator `𝒩`, as
+for `ellipse`.
+
+**The conformal map** (`map = :conformal`) has the same grid on every shape: it ignores the parametrization. It
+crowds the grid on elongated shapes: the map of a 4:1 ellipse stretches by a factor of 300 more at the tips than
+at the sides, and only 4 of the 561 nodes at ``M = 16`` lie within the outer quarters of the ellipse. Its errors
+there are tens of percent at any affordable ``M``:
+
+| ellipse ``a/b`` | conformal, capacitance error at ``M = 32`` | harmonic |
+|:--|:--|:--|
+| 1.5 | 2e-10 | 1e-14 |
+| 2 | 1.5e-5 | 1e-14 |
+| 4 | 0.37 | 1e-14 |
+
+### The conformal map
+
+`domain(γ, Mℓ, Mₘ; map = :conformal)` computes the conformal map ``f`` from the samples in three steps:
 
 1. Solve an interior Dirichlet problem for a harmonic function with boundary values ``-\log|\gamma|``, by a
    double-layer integral equation on the boundary.
@@ -72,18 +114,22 @@ order by ``\kappa`` (``\kappa = 0`` for the single layer and the hypersingular o
 in ``\theta``: a table of ``M_\ell^2 M_m`` numbers. The grid operators are not formed either. Each column of them
 (one source point) is computed from these tables and the smooth factors, transformed by an FFT and projected
 radially. The rows of the result are then transformed the same way. This takes ``O(N^2 M)`` time, and the memory
-of the coefficient matrices:
+of the coefficient matrices. The harmonic map is built the same way, column by column, with its sum over ``k``
+in place of the single shifts:
 
-| `M` | grid points ``N`` | `domain` | `ellipse` | `disk` |
-|:--|:--|:--|:--|:--|
-| 8 | 153 | 0.01 s, 0.3 MiB | 0.7 ms, 0.1 MiB | 0.2 ms |
-| 16 | 561 | 0.02 s, 2.5 MiB | 3.4 ms, 1.3 MiB | 0.8 ms |
-| 24 | 1225 | 0.05 s, 10 MiB | 9 ms, 5.3 MiB | 1.6 ms |
-| 32 | 2145 | 0.12 s, 28 MiB | 0.02 s, 15 MiB | 2.9 ms |
+| `M` | grid points ``N`` | `domain` (harmonic) | `domain` (conformal) | `ellipse` | `disk` |
+|:--|:--|:--|:--|:--|:--|
+| 8 | 153 | 0.006 s | 0.01 s, 0.3 MiB | 0.7 ms, 0.1 MiB | 0.2 ms |
+| 16 | 561 | 0.065 s | 0.02 s, 2.5 MiB | 3.4 ms, 1.3 MiB | 0.8 ms |
+| 24 | 1225 | 0.25 s | 0.05 s, 10 MiB | 9 ms, 5.3 MiB | 1.6 ms |
+| 32 | 2145 | 1.1 s | 0.12 s, 28 MiB | 0.02 s, 15 MiB | 2.9 ms |
 
-(Laptop, 8 threads.) The grid operators `Ω.K_S`, `Ω.K_N` and `Ω.K_G` are formed when accessed, as dense
-``N \times N`` matrices. A conformal domain keeps the LU factorization of each of its operators, made
-by the first solve with it, so later solves are triangular solves. A domain whose shape changes must be built again,
-with its factorizations; a moving rigid body need not, as its operators are those of its own frame. Use `ellipse` for
+(Laptop, 8 threads; the harmonic times were measured under load.) The harmonic map keeps the tables of the disk
+operators of ``e^{2ik\phi}/|\zeta - \eta|`` for each grid size, so its first call at a given `M` costs more
+(0.2 s more at ``M = 32``); the coefficient matrices take the same memory as the conformal map's. The grid operators
+`Ω.K_S`, `Ω.K_N` and `Ω.K_G` are formed when accessed, as dense ``N \times N`` matrices. A mapped domain keeps the
+LU factorization of each of its operators, made by the first solve with it, so later solves are triangular solves.
+A domain whose shape changes must be built again, with its factorizations; a moving rigid body need not, as its
+operators are those of its own frame. Use `ellipse` for
 ellipses: it gives the same results far more cheaply. Close evaluation between bodies is available for disks and
 ellipses only.

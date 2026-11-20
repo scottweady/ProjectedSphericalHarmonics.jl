@@ -80,7 +80,7 @@ torque on a tilting disk: 10.666666666676285
 
 Two quantities for an ellipse with ``a = 1.5``, ``b = 1``, at ``M = 32``: the charge density at unit potential,
 and the drag when it translates along its major axis. The ellipse is discretized twice: by `ellipse` (the affine
-map) and by `domain` from 127 samples of its boundary (the conformal map, experimental). The references are the
+map) and by `domain` from 127 samples of its boundary (the harmonic map of the samples, experimental). The references are the
 closed forms ``\sigma\sqrt{1 - x^2/a^2 - y^2/b^2} = 2/(b\,K(1 - b^2/a^2))`` and the drag ``4\pi/A``, with ``A``
 from complete elliptic integrals:
 
@@ -102,14 +102,15 @@ end
 Using angle discretization
 Error in single layer potential: 8.8e-11
 Error in drag force on an ellipse: 9.4e-14
-Using conformal discretization
-Error in single layer potential: 6.6e-5
-Error in drag force on an ellipse: 6.1e-9
+Using harmonic map (domain)
+Error in single layer potential: 1.1e-10
+Error in drag force on an ellipse: 9.3e-14
 ```
 
-The affine map is exact, so `ellipse` is limited only by the expansion. The conformal map is computed numerically
-from the boundary samples, which limits `domain`. The pointwise density, measured against the ``1/w`` form, is the
-most sensitive to the map's accuracy near the boundary.
+The affine map is exact, so `ellipse` is limited only by the expansion. Sampled as ``a\cos t + i b \sin t``, the
+ellipse's harmonic map is the same affine map, so `domain` agrees with `ellipse` to rounding. The conformal map
+(`map = :conformal`) is computed numerically and crowds the grid toward the middle of the ellipse; it gives 6.6e-5
+and 6.1e-9 here, and much larger errors for more elongated ellipses.
 
 ## A second-kind equation by GMRES (`concentration.jl`)
 

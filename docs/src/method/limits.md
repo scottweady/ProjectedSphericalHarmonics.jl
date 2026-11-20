@@ -5,15 +5,16 @@ What the method does not do, and where it needs care.
 **Geometry**
 - Surfaces are flat: a disk, an ellipse, or the inside of one smooth closed curve, in the plane ``z = 0``. There
   are no holes, no corners, and no curved surfaces.
-- Conformally mapped domains (`domain`) are experimental; the next three items are their known limits.
-- `domain(γ, M)` needs the origin inside the curve, and does not check. A curve that does not enclose it gives wrong
-  operators without an error (see [Conformally mapped domains](@ref method-domains)). The curve must be smooth and
-  resolved by its samples.
-- `domain` converges more slowly as the shape gets more elongated, at a rate set by the conformal map, and more
-  boundary samples do not help. For an ellipse with ``a/b = 2`` built by `domain`, the conductor density is still
-  off by 3e-2 at ``M = 32``, where ``a/b = 1.5`` reaches 6e-5 (see [Validation](@ref)).
-- `domain` builds dense matrices in coefficient space, of size about ``N/4`` (``N`` grid points): 10 MiB and 0.05 s
-  at ``M = 24``, growing like ``M^4`` in memory and ``M^5`` in time. Ellipses should use `ellipse`, which is sparse
+- Mapped domains (`domain`) are experimental; the next items are their known limits.
+- The harmonic map (the default) is one-to-one for convex curves. A non-convex curve may make it fold, which
+  `domain` reports as an `ArgumentError`; reparametrizing the curve, or `map = :conformal`, may help. A harmonic
+  domain has no hypersingular operator `𝒩`.
+- The conformal map (`map = :conformal`) needs the origin inside the curve, and does not check. A curve that does
+  not enclose it gives wrong operators without an error (see [Mapped domains](@ref method-domains)). It crowds the
+  grid on elongated shapes: a 4:1 ellipse is off by 37% at ``M = 32``.
+- The curve must be smooth and resolved by its samples.
+- `domain` builds dense matrices in coefficient space, of size about ``N/4`` (``N`` grid points): 10 MiB at
+  ``M = 24``, growing like ``M^4`` in memory and ``M^5`` (conformal) or ``M^6`` (harmonic) in time. Ellipses should use `ellipse`, which is sparse
   and cheap.
 
 **Operators**

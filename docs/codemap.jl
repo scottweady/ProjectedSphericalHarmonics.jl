@@ -29,7 +29,8 @@ const SETUP = quote
     D = disk(16)
     E = ellipse(1.5, 1.0, 16)
     G = domain(γ, 16)
-    DOMAINS = Dict("disk" => D, "ellipse" => E, "domain" => G)
+    GC = domain(γ, 16; map=:conformal)
+    DOMAINS = Dict("disk" => D, "ellipse" => E, "domain" => G, "conformal" => GC)
     shear(z) = (imag.(z), zero(real.(z)))               # ux = y
     xcm = [0.0 + 0.0im, 0.3 + 2.25im]                   # two bodies, about a quarter of a radius apart
     θcm = [0.0, 0.2]
@@ -39,7 +40,7 @@ end
 # ---- the settings: (id, label, group, what it is, the run) ----------------------------------------------------
 # `parent` is the domain an option is run with (bound to `Ω`) and compared with; "" for the domains. `schemes`: the
 # domains the option applies to, each combination checked by running it.
-const ALL = ["disk", "ellipse", "domain"]
+const ALL = ["disk", "ellipse", "domain", "conformal"]
 const DISK = ["disk"]
 const SETTINGS = [
     # the kinds of domain
@@ -49,9 +50,12 @@ const SETTINGS = [
     (id="ellipse", label="Ellipse", group="Domain", base=false, parent="", schemes=String[],
      about="ellipse(1.5, 1.0, 16): the disk under an affine map, its single layer and Stokes operators from the Fourier coefficients of the angular kernels (and the EllipseGeometry for close evaluation), and one solve 𝒮⁻¹(1, Ω)",
      run=:(let Ω = ellipse(1.5, 1.0, 16); 𝒮⁻¹(1, Ω) end)),
-    (id="domain", label="Conformal domain", group="Domain", base=false, parent="", schemes=String[],
-     about="domain(γ, 16) from 128 samples of a three-lobed boundary: the conformal map onto the disk, the operators by singularity swapping (dense, from the FFT and radial factors of the transforms), and one solve 𝒮⁻¹(1, Ω)",
+    (id="domain", label="Mapped domain", group="Domain", base=false, parent="", schemes=String[],
+     about="domain(γ, 16) from 128 samples of a three-lobed boundary: the harmonic map of the samples, the operators by singularity swapping (dense, a sum over the disk operators of e^{2ikϕ}/r, through the FFT and radial factors of the transforms), and one solve 𝒮⁻¹(1, Ω)",
      run=:(let Ω = domain(γ, 16); 𝒮⁻¹(1, Ω) end)),
+    (id="conformal", label="Conformal domain", group="Domain", base=false, parent="", schemes=String[],
+     about="domain(γ, 16; map = :conformal) from the same samples: the conformal map onto the disk (a double layer equation and a Cauchy integral), the operators by singularity swapping with a single angular term, and one solve 𝒮⁻¹(1, Ω)",
+     run=:(let Ω = domain(γ, 16; map=:conformal); 𝒮⁻¹(1, Ω) end)),
     # the basis and transforms
     (id="eigen", label="Eigenfunctions", group="Basis & transforms", base=false, parent="disk", schemes=DISK,
      about="ylm and ∂ylm∂ζ on the grid, the normalizations Nlm, the eigenvalues λlm, the coefficients Clmn, and lm2index and index2lm of a Disk",
@@ -81,11 +85,11 @@ const SETTINGS = [
     (id="single", label="𝒮", group="Laplace", base=false, parent="ellipse", schemes=ALL,
      about="𝒮(u, Ω): the single layer of the 3D Laplacian applied to a density",
      run=:(𝒮(real.(Ω.z) .+ 1, Ω))),
-    (id="hyper", label="𝒩", group="Laplace", base=false, parent="domain", schemes=["disk", "domain"],
-     about="𝒩(u, Ω): the hypersingular operator, applied to a function vanishing on the boundary (the ellipse does not build it)",
+    (id="hyper", label="𝒩", group="Laplace", base=false, parent="conformal", schemes=["disk", "conformal"],
+     about="𝒩(u, Ω): the hypersingular operator, applied to a function vanishing on the boundary (the ellipse and the harmonic map do not build it)",
      run=:(𝒩(real.(Ω.z) .* Ω.w, Ω))),
-    (id="hyperinv", label="𝒩⁻¹", group="Laplace", base=false, parent="domain", schemes=["disk", "domain"],
-     about="𝒩⁻¹(f, Ω): the inverse of the hypersingular operator (the ellipse does not build it)",
+    (id="hyperinv", label="𝒩⁻¹", group="Laplace", base=false, parent="conformal", schemes=["disk", "conformal"],
+     about="𝒩⁻¹(f, Ω): the inverse of the hypersingular operator (the ellipse and the harmonic map do not build it)",
      run=:(𝒩⁻¹(real.(Ω.z), Ω))),
     (id="sninv", label="𝒮𝒩⁻¹", group="Laplace", base=false, parent="disk", schemes=DISK,
      about="𝒮𝒩⁻¹(u, D): the product 𝒮𝒩⁻¹ in coefficient space, on the disk",

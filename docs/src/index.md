@@ -25,7 +25,7 @@ edge. The package uses this to provide:
   inverse, and the mobility problem of one rigid body: the velocity and rotation rate under given forces, torque
   and background flow.
 - **Non-circular domains.** Ellipses, by an affine map of the disk, and domains bounded by a smooth curve, by a
-  conformal map (experimental). The singular part of each operator stays the disk's, so the accuracy is still spectral.
+  harmonic or conformal map (experimental). The singular part of each operator stays the disk's, so the accuracy is still spectral.
 - **Many-body suspensions.** Mobility problems for many disks or ellipses at once, solved with GMRES. The
   interactions between bodies are summed by Ewald splitting with NUFFTs or by FMM, and corrected by a closed form
   where bodies come close.
@@ -48,7 +48,7 @@ integral(f[1], D)                   # its drag: 16/3 under a stress-free surface
 
 | | |
 |:--|:--|
-| Discretizations | `disk(Mℓ, Mₘ)`, `ellipse(a, b, Mℓ, Mₘ)`, `domain(γ, Mℓ, Mₘ)` (a conformal map from samples of the boundary; experimental) |
+| Discretizations | `disk(Mℓ, Mₘ)`, `ellipse(a, b, Mℓ, Mₘ)`, `domain(γ, Mℓ, Mₘ)` (a harmonic or conformal map from samples of the boundary; experimental) |
 | Basis | `ylm`, `λlm`, `Nlm`; transforms `psh` and `ipsh` (even or odd parity), `upsample`, `trace`, `integral` |
 | Laplace | single layer `𝒮`, hypersingular `𝒩`, their inverses, `𝒮𝒩⁻¹`; Poisson `Δ⁻¹`; volume potentials `𝒱`, `ℬ`, `𝒯`; shape derivatives `δ𝒮`, `δ𝒩`, `δ𝒱`, `δℬ` |
 | Differential operators | `∂ζ`, `∂ζ̄`, `∂x`, `∂y`, `grad`, `div`, `lap`, `∂n` (on the disk) |
