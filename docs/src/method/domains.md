@@ -41,9 +41,11 @@ The ellipse also stores the Fourier coefficients of ``A_0`` (`Ω.ext`, an `Ellip
     dense, and there is no close evaluation between bodies. For ellipses, use `ellipse`.
 
 `domain(γ, Mℓ, Mₘ; map)` discretizes the inside of a closed curve, the image of the disk under a smooth map ``F``
-with ``F(e^{it}) = \gamma(t)``. `γ` is the curve sampled at equispaced parameter values, counterclockwise.
+with ``F(e^{it}) = \gamma(t)``. `γ` is the curve sampled at equispaced parameter values, counterclockwise. By
+default (`map = :auto`) the map is the harmonic map below, which is the cheapest, or the Winslow map if the harmonic
+map folds, with a message; `map = :harmonic`, `:winslow` or `:conformal` chooses one.
 
-**The harmonic map** (`map = :harmonic`, the default) is the harmonic extension of the samples: with ``\gamma(t) =
+**The harmonic map** (`map = :harmonic`) is the harmonic extension of the samples: with ``\gamma(t) =
 \sum_n \hat\gamma_n e^{int}``,
 
 ```math
@@ -70,6 +72,41 @@ the single layer is a sum over ``k`` of smooth coefficients times the disk opera
 one term; the affine map has constant ``\mu``. The operators of a harmonic domain cost more to build than those of
 a conformal one, as each pair of grid points sums ``2M_m + 1`` terms. There is no hypersingular operator `𝒩`, as
 for `ellipse`.
+
+**The Winslow map** (`map = :winslow`) is the map whose *inverse* ``\zeta(z)`` is harmonic on ``\Omega``, with the same
+boundary values. The disk is convex, so by the same theorem the inverse, and so the map, is one-to-one for any
+smooth simply connected domain: it does not fold on the non-convex shapes on which the harmonic map does, such as
+stars with deep valleys. It is the elliptic grid generator of Winslow. The real and imaginary parts of
+``\zeta(z)`` solve Dirichlet problems on ``\Omega``, by a second-kind double-layer equation on the boundary, and are
+evaluated by the barycentric Cauchy formula, accurate up to the boundary. ``F`` at the nodes of a PSH grid of degree
+``L`` follows by Newton's method, and is expanded in the even PSH (polynomials in ``x, y``, a well-conditioned basis),
+with ``L`` raised until the boundary is reproduced to ``10^{-8}``. The divided differences are then the mean values
+of the derivatives along the segment from ``\eta`` to ``\zeta``,
+
+```math
+P = \int_0^1 \partial F(\eta + t(\zeta - \eta))\,dt, \qquad Q = \int_0^1 \bar\partial F(\eta + t(\zeta - \eta))\,dt,
+```
+
+computed exactly by Gauss–Legendre quadrature. (For the harmonic map these are the divided differences above.) A
+split of the polynomial term by term also satisfies the identity, but its ``|\mu|`` reaches far beyond 1 for
+distant pairs on non-convex shapes; the mean values keep ``|\mu| < 1``: 0.54 for the star ``1 + 0.6\cos 3t``, 0.75
+for the pinwheel below. The construction costs more than the harmonic map's, as the mean values are sums along
+every segment: about 4 s at ``M = 16`` and 30 s at ``M = 32`` (workstation, 16 threads), once for a rigid body.
+
+How deformed a shape can be is limited by the spectral discretization, not by the map: the operators need
+``|\mu| < 1`` for every pair of grid points, and converge more slowly as ``|\mu|`` approaches 1 and the Jacobian of
+the map becomes small. A chiral pinwheel with five arms, ``z = r(s)\,e^{i(s + 0.6(r(s) - 1))}``, ``r = 1 + 0.3\cos 5s``
+(``|\mu| \le 0.75``), converges to six digits in its capacitance, drag and torque at ``M = 32``:
+
+| `M` | capacitance | drag | torque |
+|:--|:--|:--|:--|
+| 16 | 8.761115 | 5.877040 | 7.902250 |
+| 24 | 8.761112 | 5.876909 | 7.902228 |
+| 32 | 8.761113 | 5.876909 | 7.902223 |
+
+The parametrization still places the grid, and must stay smooth. Resampling a curve at equal arc length gives its
+high-curvature parts (tips, lobes) only a small share of the parameter, so the curve needs hundreds of Fourier modes
+(271 for a 4:1 ellipse, which ``a\cos t + i b\sin t`` gives with one) and the grid cannot resolve the map.
 
 **The conformal map** (`map = :conformal`) has the same grid on every shape: it ignores the parametrization. It
 crowds the grid on elongated shapes: the map of a 4:1 ellipse stretches by a factor of 300 more at the tips than

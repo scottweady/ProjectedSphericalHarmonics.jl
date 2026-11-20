@@ -30,7 +30,8 @@ const SETUP = quote
     E = ellipse(1.5, 1.0, 16)
     G = domain(γ, 16)
     GC = domain(γ, 16; map=:conformal)
-    DOMAINS = Dict("disk" => D, "ellipse" => E, "domain" => G, "conformal" => GC)
+    GW = domain(γ, 16; map=:winslow)
+    DOMAINS = Dict("disk" => D, "ellipse" => E, "domain" => G, "conformal" => GC, "winslow" => GW)
     shear(z) = (imag.(z), zero(real.(z)))               # ux = y
     xcm = [0.0 + 0.0im, 0.3 + 2.25im]                   # two bodies, about a quarter of a radius apart
     θcm = [0.0, 0.2]
@@ -40,7 +41,7 @@ end
 # ---- the settings: (id, label, group, what it is, the run) ----------------------------------------------------
 # `parent` is the domain an option is run with (bound to `Ω`) and compared with; "" for the domains. `schemes`: the
 # domains the option applies to, each combination checked by running it.
-const ALL = ["disk", "ellipse", "domain", "conformal"]
+const ALL = ["disk", "ellipse", "domain", "conformal", "winslow"]
 const DISK = ["disk"]
 const SETTINGS = [
     # the kinds of domain
@@ -53,6 +54,9 @@ const SETTINGS = [
     (id="domain", label="Mapped domain", group="Domain", base=false, parent="", schemes=String[],
      about="domain(γ, 16) from 128 samples of a three-lobed boundary: the harmonic map of the samples, the operators by singularity swapping (dense, a sum over the disk operators of e^{2ikϕ}/r, through the FFT and radial factors of the transforms), and one solve 𝒮⁻¹(1, Ω)",
      run=:(let Ω = domain(γ, 16); 𝒮⁻¹(1, Ω) end)),
+    (id="winslow", label="Winslow domain", group="Domain", base=false, parent="", schemes=String[],
+     about="domain(γ, 16; map = :winslow) from the same samples: the Winslow map (the inverse map harmonic, by a double layer equation and Newton's method, expanded in PSH), the operators by singularity swapping with mean-value divided differences, and one solve 𝒮⁻¹(1, Ω)",
+     run=:(let Ω = domain(γ, 16; map=:winslow); 𝒮⁻¹(1, Ω) end)),
     (id="conformal", label="Conformal domain", group="Domain", base=false, parent="", schemes=String[],
      about="domain(γ, 16; map = :conformal) from the same samples: the conformal map onto the disk (a double layer equation and a Cauchy integral), the operators by singularity swapping with a single angular term, and one solve 𝒮⁻¹(1, Ω)",
      run=:(let Ω = domain(γ, 16; map=:conformal); 𝒮⁻¹(1, Ω) end)),

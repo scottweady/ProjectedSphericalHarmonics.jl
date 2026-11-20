@@ -6,9 +6,14 @@ What the method does not do, and where it needs care.
 - Surfaces are flat: a disk, an ellipse, or the inside of one smooth closed curve, in the plane ``z = 0``. There
   are no holes, no corners, and no curved surfaces.
 - Mapped domains (`domain`) are experimental; the next items are their known limits.
-- The harmonic map (the default) is one-to-one for convex curves. A non-convex curve may make it fold, which
-  `domain` reports as an `ArgumentError`; reparametrizing the curve, or `map = :conformal`, may help. A harmonic
-  domain has no hypersingular operator `𝒩`.
+- The harmonic map is one-to-one for convex curves. A non-convex curve may make it fold; `domain` then uses the
+  Winslow map, which does not fold but costs 5–10 times more to build (`map = :harmonic` makes a fold an
+  `ArgumentError` instead). Harmonic and Winslow domains have no hypersingular operator `𝒩`.
+- How deformed a mapped domain can be is limited by the spectral discretization: the operators need ``|\mu| < 1``
+  between every pair of grid points (an `ArgumentError` otherwise) and converge more slowly as it approaches 1.
+  Five-armed stars with valleys at half the arm length, or chiral pinwheels like the one in
+  [Mapped domains](@ref method-domains), reach six digits at ``M = 32``; sharper arms and deeper valleys do not. The
+  Winslow map costs seconds to build at ``M = 16`` and about 30 s at ``M = 32``.
 - The conformal map (`map = :conformal`) needs the origin inside the curve, and does not check. A curve that does
   not enclose it gives wrong operators without an error (see [Mapped domains](@ref method-domains)). It crowds the
   grid on elongated shapes: a 4:1 ellipse is off by 37% at ``M = 32``.

@@ -93,8 +93,9 @@ maximum(abs.(u .- (1 .- abs2.(D.z)) ./ 4))     # 4e-15
 
 The same operators work on an ellipse and on a domain bounded by a smooth curve. `ellipse(a, b, M)` maps the disk
 affinely onto the ellipse with semi-axes `a` and `b`. `domain(γ, M)` maps it onto the inside of a closed curve,
-given by samples `γ` at equispaced parameter values, counterclockwise, by the harmonic extension of the samples
-(`map = :conformal` gives the conformal map):
+given by samples `γ` at equispaced parameter values, counterclockwise, by the harmonic extension of the samples, or,
+where that folds (on some non-convex curves), by the Winslow map, which does not (`map = :harmonic`, `:winslow` or
+`:conformal` chooses the map):
 
 ```julia
 Ω = ellipse(1.5, 1.0, 32)
