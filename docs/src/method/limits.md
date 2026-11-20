@@ -12,7 +12,7 @@ What the method does not do, and where it needs care.
 - `domain` converges more slowly as the shape gets more elongated, at a rate set by the conformal map, and more
   boundary samples do not help. For an ellipse with ``a/b = 2`` built by `domain`, the conductor density is still
   off by 3e-2 at ``M = 32``, where ``a/b = 1.5`` reaches 6e-5 (see [Validation](@ref)).
-- `domain` builds dense ``N \times N`` matrices (``N`` grid points): 120 MiB and 0.3 s at ``M = 24``, growing like
+- `domain` builds dense ``N \times N`` matrices (``N`` grid points): 120 MiB and 0.13 s at ``M = 24``, growing like
   ``M^4`` in memory and ``M^5`` in time. Ellipses should use `ellipse`, which is sparse and cheap.
 
 **Operators**

@@ -73,12 +73,12 @@ is FFTs in ``\theta`` and radial sums of its rows and columns. Building the oper
 
 | `M` | grid points ``N`` | `domain` | `ellipse` | `disk` |
 |:--|:--|:--|:--|:--|
-| 8 | 153 | 0.04 s, 2 MiB | 1 ms, 0.1 MiB | 0.6 ms |
-| 16 | 561 | 0.12 s, 26 MiB | 9 ms, 1.3 MiB | 2 ms |
-| 24 | 1225 | 0.32 s, 120 MiB | 0.03 s, 5.3 MiB | 6 ms |
-| 32 | 2145 | 0.63 s, 380 MiB | 0.03 s, 15 MiB | 5 ms |
+| 8 | 153 | 0.02 s, 2 MiB | 0.7 ms, 0.1 MiB | 0.2 ms |
+| 16 | 561 | 0.04 s, 26 MiB | 3.5 ms, 1.3 MiB | 0.8 ms |
+| 24 | 1225 | 0.13 s, 120 MiB | 9 ms, 5.3 MiB | 1.6 ms |
+| 32 | 2145 | 0.28 s, 380 MiB | 0.02 s, 15 MiB | 2.9 ms |
 
-(Workstation, 8 threads, under load.) A conformal domain keeps the LU factorization of each of its operators, made
+(Laptop, 8 threads.) A conformal domain keeps the LU factorization of each of its operators, made
 by the first solve with it, so later solves are triangular solves. A domain whose shape changes must be built again,
 with its factorizations; a moving rigid body need not, as its operators are those of its own frame. Use `ellipse` for
 ellipses: it gives the same results far more cheaply. Close evaluation between bodies is available for disks and
