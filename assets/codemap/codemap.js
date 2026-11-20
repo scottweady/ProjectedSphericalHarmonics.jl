@@ -16,16 +16,16 @@
       dirs: ["domains", "conformal", "spectral", "operators", "solvers", "suspensions", "algorithms"] },
   ];
   const DIRNAME = {
-    domains: "domains (disk, ellipse, conformal domain)",
-    conformal: "conformal (the map, shape derivatives)",
+    domains: "domains (disk, ellipse, mapped domains)",
+    conformal: "conformal (the conformal, harmonic and Winslow maps, shape derivatives)",
     spectral: "spectral (grids, eigenfunctions, transforms)",
     operators: "operators (integral, Stokes, differential)",
     solvers: "solvers (Poisson, GMRES)",
     suspensions: "suspensions (many bodies, Ewald, close evaluation)",
     algorithms: "algorithms (adaptive cross approximation)",
   };
-  const SCHEMEMARK = { disk: "D", ellipse: "E", domain: "C" };
-  const OPTIONS_LABEL = "Options (D E C: the domains they apply to)";
+  const SCHEMEMARK = { disk: "D", ellipse: "E", domain: "H", winslow: "W", conformal: "C" };
+  const OPTIONS_LABEL = "Options (D E H W C: the domains they apply to)";
   // ---- end of configuration ----
   const dirname = dir => DIRNAME[dir] || dir.split("/").pop();
   const SVG = "http://www.w3.org/2000/svg";
