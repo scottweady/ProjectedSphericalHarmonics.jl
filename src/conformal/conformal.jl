@@ -33,12 +33,15 @@ end
 
 function cauchy_operator(ζ, f, γ, γₛ, w)
 
-  Δz  = γ .- ζ
-  idx = findfirst(x -> abs(x) ≈ 0, Δz)
-  isnothing(idx) || return f[idx]
-
-  q = w .* γₛ ./ Δz
-  return sum(f .* q) / sum(q)
+  num, den = zero(ComplexF64), zero(ComplexF64)
+  @inbounds for k in eachindex(γ)
+    Δz = γ[k] - ζ
+    iszero(Δz) && return f[k]
+    q = w[k] * γₛ[k] / Δz
+    num += f[k] * q
+    den += q
+  end
+  return num / den
 
 end
 
@@ -98,8 +101,9 @@ function conformalmap(γ; L=1.0, α=5)
   γ̃  = γ .* exp.(h)
   γ̃ₛ = γₛ .* exp.(h) + hₛ .* γ̃
 
+  dγ = γₛ ./ γ̃ₛ
   f(ζ) = cauchy_operator(ζ, γ, γ̃, γ̃ₛ, w)
-  df(ζ) = cauchy_operator(ζ, γₛ ./ γ̃ₛ, γ̃, γ̃ₛ, w)
+  df(ζ) = cauchy_operator(ζ, dγ, γ̃, γ̃ₛ, w)
 
   return f, df
 

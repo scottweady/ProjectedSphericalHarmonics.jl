@@ -305,13 +305,42 @@ end
 - dense matrix representation of the PSH transform
 """
 function psh_matrix(D; parity=:total)
-  N = length(D.ζ)
-  P = Matrix{ComplexF64}(I, N, N)
-  for i = 1 : N
-    e = @view P[:, i]
-    psh_vec!(e, D, parity=parity)
+  Y, F = _psh_factors(D)
+  Nr, Nθ = D.shp
+  mask = getproperty(D, parity)
+  dw = vec(D.dw)
+  # P[(ℓ, m), (i, j)] = conj(y_ℓ^m(r_i)) dw_i e^{-imθ_j}: the radial projection after the FFT in θ
+  P = zeros(ComplexF64, Nr, Nθ, Nr, Nθ)
+  Threads.@threads for j = 1 : Nθ
+    for i = 1 : Nr, nm = 1 : Nθ
+      c = dw[i] * F[nm, j]
+      for l = 1 : Nr
+        mask[l, nm] && (P[l, nm, i, j] = conj(Y[i, l, nm]) * c)
+      end
+    end
   end
-  return P
+  return reshape(P, Nr * Nθ, Nr * Nθ)
+end
+
+# Radial basis Y[i, ℓ+1, nm] = y_ℓ^m(r_i) (zero for ℓ < |m|), from the recurrence of `ipsh!`, and the
+# Fourier factors F[nm, j] = e^{-imθ_j} of `fft` along θ
+function _psh_factors(D)
+  r = vec(D.r)
+  w = sqrt.(1 .- r.^2)
+  Nr, Nθ = D.shp
+  Y = zeros(ComplexF64, Nr, Nr, Nθ)
+  for (nm, m) in enumerate(D.Mspan)
+    absm = abs(m)
+    absm > D.Mℓ && continue
+    Y[:, absm + 1, nm] .= ylm(absm, m, r)
+    absm == D.Mℓ && continue
+    Y[:, absm + 2, nm] .= ylm(absm + 1, m, r)
+    for nl = (absm + 2) : D.Mℓ
+      Y[:, nl + 1, nm] .= D.a[nl, nm] * w .* Y[:, nl, nm] .+ D.am1[nl, nm] * Y[:, nl - 1, nm]
+    end
+  end
+  F = [cis(-2π * (nm - 1) * (j - 1) / Nθ) for nm = 1 : Nθ, j = 1 : Nθ]
+  return Y, F
 end
 
 """
@@ -327,16 +356,27 @@ end
 - dense matrix representation of the inverse PSH transform
 """
 function ipsh_matrix(D; parity=:total)
-  N = length(D.ζ)
-  Q = Matrix{ComplexF64}(I, N, N)
-
-  idx = findall(vec(getproperty(D, parity)))
-
-  for i = idx
-    e = @view Q[:, i]
-    ipsh_vec!(e, D, parity=parity)
+  Y, F = _psh_factors(D)
+  Nr, Nθ = D.shp
+  mask = getproperty(D, parity)
+  # Q[(i, j), (ℓ, m)] = y_ℓ^m(r_i) e^{imθ_j} for the modes of the parity; the other columns are
+  # left as columns of the identity
+  Q = zeros(ComplexF64, Nr, Nθ, Nr, Nθ)
+  Threads.@threads for nm = 1 : Nθ
+    for l = 1 : Nr
+      if mask[l, nm]
+        for j = 1 : Nθ
+          c = conj(F[nm, j])
+          for i = 1 : Nr
+            Q[i, j, l, nm] = Y[i, l, nm] * c
+          end
+        end
+      else
+        Q[l, nm, l, nm] = 1
+      end
+    end
   end
-  return Q
+  return reshape(Q, Nr * Nθ, Nr * Nθ)
 end
 
 export psh_matrix, ipsh_matrix

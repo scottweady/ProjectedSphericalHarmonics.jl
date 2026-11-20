@@ -403,12 +403,12 @@ function suspension_mobility_solve(xcm, θcm, uinf, uslip, F::Vector, Ω; eps=1e
   # read as a velocity, the single-body solve gives
   #   R = M⁻¹ (rU − μ B g),   δf̃ = μ g + Σₖ Rₖ h̃ₖ,   h̃ₖ = μ K⁻¹ psh(eₖ),
   # with B g the force and torque of the density ipsh(g)/w and e = (1,0), (0,1), (−y,x) the
-  # rigid motions. K is factored once per solve.
+  # rigid motions. K is factored once per solve (once per domain for a `Domain`).
   μ    = μ_bottom + μ_top
   ieven = findall(Ω.even)
   Ne   = length(ieven)
   K    = Ω.K̂_G
-  Klu  = lu([K[1,1] K[1,2]; K[2,1] K[2,2]])
+  Klu  = _factorization(Ω, K)
   evenvec(û) = vcat(û[1][ieven], û[2][ieven])
   H    = μ .* (Klu \ hcat(evenvec(psh((ones(shp), zeros(shp)), Ω)),
                          evenvec(psh((zeros(shp), ones(shp)), Ω)),

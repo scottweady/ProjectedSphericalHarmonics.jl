@@ -59,6 +59,10 @@ function apply(M, f̂::Tuple, Ω; parity=:even)
 end
 
 
+# A `Domain` keeps the factorizations of its operators; other discretizations factor on each call
+_factorization(Ω::Domain, M) = factorization(Ω, M)
+_factorization(Ω, M) = lu(M isa AbstractMatrix{<:AbstractMatrix} ? [M[1, 1] M[1, 2]; M[2, 1] M[2, 2]] : M)
+
 """
     solve(M, f̂, Ω; parity=:even)
 
@@ -76,15 +80,14 @@ Solve M * û = f̂ for û with given parity
 function solve(M, f̂::AbstractArray, Ω; parity=:even)
   idx = findall(getproperty(Ω, parity))
   û = zeros(ComplexF64, size(Ω.z))
-  û[idx]  = M \ f̂[idx]
+  û[idx]  = _factorization(Ω, M) \ f̂[idx]
   return û
 end
 
 function solve(M, f̂::Tuple, Ω; parity=:even)
   idx = findall(getproperty(Ω, parity))
   Ne = length(idx)
-  M = [M[1,1] M[1,2]; M[2,1] M[2,2]]
-  v  = M \ [f̂[1][idx]; f̂[2][idx]]
+  v  = _factorization(Ω, M) \ [f̂[1][idx]; f̂[2][idx]]
   û1 = zeros(ComplexF64, size(Ω.z)); û1[idx] .= v[1:Ne]
   û2 = zeros(ComplexF64, size(Ω.z)); û2[idx] .= v[Ne+1:end]
   return û1, û2
