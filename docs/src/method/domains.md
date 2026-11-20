@@ -59,26 +59,30 @@ f'(\zeta)``, the single layer kernel on ``\Omega`` is ``1/(|M|\,|\zeta - \eta|)`
 disk's operator, the matrix ``Q\,\hat K\,P`` of transform, eigenvalues and inverse transform on the grid, multiplied
 entrywise by the smooth factor ``J(\eta)/|M(\zeta, \eta)|``. This is singularity swapping: the disk's operator
 absorbs the singularity, and the smooth factor is applied pointwise. The hypersingular operator and the Stokes
-blocks are built the same way. The Stokes blocks also include the angular factors ``\cos^2``, ``\sin\cos``,
-``\sin^2`` of the disk and the rotation by the angle of ``M``.
+blocks are built the same way. In the Stokes blocks the direction ``\hat r \hat r^T`` on ``\Omega`` has the angle
+``\psi = \phi + \alpha``, with ``\phi`` the angle on the disk and ``\alpha`` that of ``M``. So it comes from the
+disk operators of the kernels ``e^{\pm 2i\phi}/|\zeta - \eta|``, times ``e^{\pm 2i\alpha}``: for example
+``\cos^2\psi = 1/2 + (e^{2i\alpha} e^{2i\phi} + e^{-2i\alpha} e^{-2i\phi})/4``.
 
-The result is a set of dense ``N \times N`` matrices, with ``N`` the number of grid points, projected to
-coefficient space. The transforms are never formed as dense matrices: each is an FFT in ``\theta`` and, for each
-order ``m``, a radial sum, ``P = \operatorname{blockdiag}(R_m)\,(F \otimes I)`` and ``Q = (F^* \otimes
-I)\,\operatorname{blockdiag}(Y_m)``. A disk operator ``\hat K`` that shifts the order by ``\kappa`` (``\kappa = 0``
-for the single layer, ``0, \pm 2`` for the angular factors) gives ``Q\,\hat K\,P`` as a phase ``e^{i\kappa\theta}``
-times a matrix circulant in ``\theta``, from ``M_\ell^3`` work per order. The projection ``P\,K\,Q`` of a grid matrix
-is FFTs in ``\theta`` and radial sums of its rows and columns. Building the operators takes ``O(N^2)`` memory and
-``O(N^2 M)`` time:
+The operators are then projected to coefficient space, as dense matrices. The transforms are not formed as matrices:
+each is an FFT in ``\theta`` and, for each order ``m``, a radial sum, ``P = \operatorname{blockdiag}(R_m)\,(F
+\otimes I)`` and ``Q = (F^* \otimes I)\,\operatorname{blockdiag}(Y_m)``. A disk operator ``\hat K`` that shifts the
+order by ``\kappa`` (``\kappa = 0`` for the single layer and the hypersingular operator, ``\pm 2`` for the kernels
+``e^{\pm 2i\phi}/|\zeta - \eta|``) gives ``Q\,\hat K\,P`` as a phase ``e^{i\kappa\theta}`` times a matrix circulant
+in ``\theta``: a table of ``M_\ell^2 M_m`` numbers. The grid operators are not formed either. Each column of them
+(one source point) is computed from these tables and the smooth factors, transformed by an FFT and projected
+radially. The rows of the result are then transformed the same way. This takes ``O(N^2 M)`` time, and the memory
+of the coefficient matrices:
 
 | `M` | grid points ``N`` | `domain` | `ellipse` | `disk` |
 |:--|:--|:--|:--|:--|
-| 8 | 153 | 0.02 s, 2 MiB | 0.7 ms, 0.1 MiB | 0.2 ms |
-| 16 | 561 | 0.04 s, 26 MiB | 3.5 ms, 1.3 MiB | 0.8 ms |
-| 24 | 1225 | 0.13 s, 120 MiB | 9 ms, 5.3 MiB | 1.6 ms |
-| 32 | 2145 | 0.28 s, 380 MiB | 0.02 s, 15 MiB | 2.9 ms |
+| 8 | 153 | 0.01 s, 0.3 MiB | 0.7 ms, 0.1 MiB | 0.2 ms |
+| 16 | 561 | 0.02 s, 2.5 MiB | 3.4 ms, 1.3 MiB | 0.8 ms |
+| 24 | 1225 | 0.05 s, 10 MiB | 9 ms, 5.3 MiB | 1.6 ms |
+| 32 | 2145 | 0.12 s, 28 MiB | 0.02 s, 15 MiB | 2.9 ms |
 
-(Laptop, 8 threads.) A conformal domain keeps the LU factorization of each of its operators, made
+(Laptop, 8 threads.) The grid operators `Ω.K_S`, `Ω.K_N` and `Ω.K_G` are formed when accessed, as dense
+``N \times N`` matrices. A conformal domain keeps the LU factorization of each of its operators, made
 by the first solve with it, so later solves are triangular solves. A domain whose shape changes must be built again,
 with its factorizations; a moving rigid body need not, as its operators are those of its own frame. Use `ellipse` for
 ellipses: it gives the same results far more cheaply. Close evaluation between bodies is available for disks and
