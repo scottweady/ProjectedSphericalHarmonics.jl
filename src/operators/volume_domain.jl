@@ -292,3 +292,109 @@ function _volume_pq(Ω, geom::_MappedPQ, ζ₀, η)
   a, b = _derivatives(F, vec(pts))
   return vec(sum(F.wg .* reshape(a, ng, :), dims=1)), vec(sum(F.wg .* reshape(b, ng, :), dims=1))
 end
+
+# ---- Volume potentials at rim targets ------------------------------------------------------------------------------
+# For the targets e^{iτ_j} on the rim, the same expansion with the pairs (e^{iτ_j}, ζ_q): the disk's weights of the
+# kernels for the target 1 (`_volume_ring_weights` at r = 1, shared by all the targets) rotate to e^{iτ}, and composed
+# with the transform they act on grid values. The transform is circulant in θ, Pₑ[e, (i′, j′)] = Pₑ[e, (i′, 1)]
+# e^{-i m_e (θ_j′ - θ₁)}, so the rotated weights on the grid are one FFT in θ per target and kernel.
+function _rim_volume_matrix(Ω, n, kernel)
+  D = getfield(Ω, :D)
+  geom, J, _ = _volume_geometry(Ω)
+  Nr, Nθ = D.shp
+  N = Nr * Nθ
+  ζ = vec(ComplexF64.(D.ζ))
+  α = 2π .* (0 : n - 1) ./ n
+  P = Matrix{ComplexF64}(undef, n, N)
+  Q = similar(P)
+  Threads.@threads for j = 1 : n
+    Pj, Qj = _volume_pq(Ω, geom, cis(α[j]), ζ)
+    P[j, :] .= Pj
+    Q[j, :] .= Qj
+  end
+  smax = maximum(abs2.(Q ./ P))
+  smax < 1 || throw(ArgumentError("volume_matrix: |μ| = $(sqrt(smax)) ≥ 1 for a pair of a rim target and a grid point"))
+  K = _volume_K(smax)
+  wlog, _, Wk, Vk = _volume_ring_weights(D, 1.0; N=max(K, 1))
+  cols = (max(K, 1) + 1) .+ (-K : K)
+  W = kernel === :log ? hcat(Wk[:, cols], wlog) : Vk[:, cols]     # column k + K + 1: e^{2ikϕ} (or |Δζ| e^{2ikϕ})
+  ncol = size(W, 2)
+  # G[nm, i′, c]: the weights of kernel c on the column j′ = 1 of the grid, summed over ℓ for each order m
+  Pₑ = psh_matrix(D; parity=:even)[D.idx_even, 1 : Nr]
+  nms = [cld(k, Nr) for k in D.idx_even]
+  Mspan = vec(D.Mspan)
+  G = zeros(ComplexF64, length(Mspan), Nr, ncol)
+  for c = 1 : ncol, (e, nm) in enumerate(nms), i′ = 1 : Nr
+    G[nm, i′, c] += W[e, c] * Pₑ[e, i′]
+  end
+  bins = mod.(Mspan, Nθ) .+ 1
+  cl = [(-1)^(k + 1) / 2k for k = 1 : K]
+  smaxc = max(smax * (1 + 1e-12), 1e-8)
+  cheb = kernel === :abs ? _harmonic_chebyshev(K, smaxc; H=_abs_H, nH=K + 1) : zeros(0, 0)
+  V = Matrix{ComplexF64}(undef, n, N)
+  Threads.@threads for js in collect(Iterators.partition(1 : n, cld(n, Threads.nthreads())))
+    A = zeros(ComplexF64, Nθ, Nr, ncol)
+    plan = plan_fft!(A, 1)
+    H, b₁, b₂ = zeros(K + 1), zeros(K + 1), zeros(K + 1)
+    for j in js
+      fill!(A, 0)
+      for (nm, m) in enumerate(Mspan)
+        e = cis(m * α[j])
+        for c = 1 : ncol, i′ = 1 : Nr
+          A[bins[nm], i′, c] += G[nm, i′, c] * e
+        end
+      end
+      plan * A                                    # A[j′, i′, c]: kernel c rotated to e^{iα_j}, at the grid point (i′, j′)
+      ph = [cis(2k * α[j]) for k = 1 : K]
+      for j′ = 1 : Nθ, i′ = 1 : Nr
+        q = i′ + (j′ - 1) * Nr
+        μ = Q[j, q] / P[j, q]
+        μⁿ = one(ComplexF64)
+        if kernel === :log
+          acc = A[j′, i′, 2K + 2] + log(abs(P[j, q])) * A[j′, i′, K + 1]
+          for k = 1 : K
+            μⁿ *= μ
+            acc += cl[k] * (μⁿ * conj(ph[k]) * A[j′, i′, K + 1 - k] + conj(μⁿ) * ph[k] * A[j′, i′, K + 1 + k])
+          end
+          V[j, q] = J[q] * acc
+        else
+          _clenshaw!(H, b₁, b₂, cheb, 2abs2(μ) / smaxc - 1)
+          acc = H[1] * A[j′, i′, K + 1]
+          for k = 1 : K
+            μⁿ *= μ
+            acc += H[k + 1] * (μⁿ * conj(ph[k]) * A[j′, i′, K + 1 - k] + conj(μⁿ) * ph[k] * A[j′, i′, K + 1 + k])
+          end
+          V[j, q] = J[q] * abs(P[j, q]) * acc
+        end
+      end
+    end
+  end
+  return V
+end
+
+"""
+    volume_matrix(Ω::Domain, n::Int; kernel=:log)
+
+The volume integral of the kernel ``\\log|x - y|`` (`kernel = :log`) or ``|x - y|`` (`kernel = :abs`) on `Ω` at the
+`n` boundary points ``x_j = F(e^{iτ_j})``, ``τ_j = 2π(j - 1)/n``, as an `n × N` matrix on the grid: for a smooth
+``f`` sampled at `Ω.z`,
+
+```math
+\\int_Ω \\log|x_j - y|\\, f(y)\\, dy ≈ \\sum_q V_{jq}\\, f(z_q),
+```
+
+with spectral accuracy. As for `volume_matrix(Ω)` (targets on the grid), the weights hold the Jacobian and the even-PSH
+projection, so ``V_{jq}`` times a smooth function of the pair (such as ``A(|x_j - z_q|)``) still integrates that
+product against ``f``. Made on the first call and kept by `Ω`. See also `line_matrix`.
+"""
+function volume_matrix(Ω::Domain, n::Int; kernel::Symbol=:log)
+  kernel === :log || kernel === :abs || throw(ArgumentError("kernel must be :log or :abs, not :$kernel"))
+  n >= 1 || throw(ArgumentError("n must be positive"))
+  cache, lk = getfield(Ω, :factors)
+  key = (:volume_rim, kernel, n)
+  V = lock(() -> get(cache, key, nothing), lk)
+  V === nothing || return V
+  V = _rim_volume_matrix(Ω, n, kernel)
+  lock(() -> (cache[key] = V), lk)
+  return V
+end
