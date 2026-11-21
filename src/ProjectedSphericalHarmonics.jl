@@ -66,8 +66,9 @@ include("operators/matrices.jl")
 include("operators/integral.jl")
 include("operators/volume.jl")
 include("operators/stokes.jl")
+include("operators/volume_domain.jl")
 export 𝒮, 𝒩, 𝒮⁻¹, 𝒩⁻¹, 𝒮𝒩⁻¹
-export 𝒱, ℬ, 𝒯, 𝒯_vol
+export 𝒱, ℬ, 𝒯, 𝒯_vol, volume_matrix
 export 𝒮_st, 𝒮_st⁻¹
 
 # Differential operators

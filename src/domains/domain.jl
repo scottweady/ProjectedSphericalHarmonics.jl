@@ -425,12 +425,13 @@ function _harmonic_H(K, s)
   return H
 end
 
-# Chebyshev coefficients of the H on [0, smax], to the degree at which they have decayed to rounding
-function _harmonic_chebyshev(K, smax)
+# Chebyshev coefficients of the H on [0, smax], to the degree at which they have decayed to rounding (`H(K, s)` returns
+# the `nH` series at s; the volume potentials use other series, see `_abs_H`)
+function _harmonic_chebyshev(K, smax; H=_harmonic_H, nH=_nH(K))
   for d in (16, 32, 64, 128, 256)
     θs = π .* ((0 : d) .+ 0.5) ./ (d + 1)
-    Hs = [_harmonic_H(K, smax * (1 + cos(θ)) / 2) for θ in θs]
-    cheb = [(m == 0 ? 1 : 2) / (d + 1) * sum(Hs[i][h] * cos(m * θs[i]) for i = 1 : d + 1) for h = 1 : _nH(K), m = 0 : d]
+    Hs = [H(K, smax * (1 + cos(θ)) / 2) for θ in θs]
+    cheb = [(m == 0 ? 1 : 2) / (d + 1) * sum(Hs[i][h] * cos(m * θs[i]) for i = 1 : d + 1) for h = 1 : nH, m = 0 : d]
     scale = maximum(abs, cheb)
     tail = maximum(abs, cheb[:, end - 1 : end])
     # The values carry rounding errors of about 1e-16 relative, so the coefficients level off there

@@ -13,6 +13,7 @@ end
   @testset "Volume potentials" include("test_volume.jl")
   @testset "Differential operators" include("test_differential.jl")
   @testset "Domains" include("test_domain.jl")
+  @testset "Volume potentials on domains" include("test_volume_domain.jl")
   @testset "Stokes mobility" include("test_stokes_mobility.jl")
   @testset "Close evaluation" include("test_close_eval.jl")
   @testset "Evaluation at points" include("test_eval.jl")

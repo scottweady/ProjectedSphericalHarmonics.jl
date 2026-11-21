@@ -64,6 +64,7 @@ solve
 𝒯_vol
 ℬ
 𝒯
+volume_matrix
 ```
 
 ## Shape derivatives

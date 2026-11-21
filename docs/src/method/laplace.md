@@ -77,6 +77,33 @@ grid points; its kernel is continuous, and it converges algebraically, not spect
 \mathcal{S}[\zeta u] + \mathcal{S}[|\zeta|^2 u]\right).
 ```
 
+### Volume potentials on mapped domains
+
+On a `Domain` (`ellipse`, or `domain` with any map), `𝒱(u, Ω)` is spectrally accurate. Pulled back to the disk,
+the density is ``g = (u \circ F)\,J``, smooth, and the kernel splits with the Wirtinger divided differences ``F(\zeta)
+- F(\eta) = P\,\Delta\zeta + Q\,\overline{\Delta\zeta}`` of each pair of points (see [Mapped domains](domains.md)), ``\mu
+= Q/P`` and ``\phi = \arg \Delta\zeta``:
+
+```math
+\log|F(\zeta) - F(\eta)| = \log|\Delta\zeta| + \log|P| + \sum_{n \ge 1} \frac{(-1)^{n+1}}{2n}
+\left(\mu^n e^{-2in\phi} + \bar\mu^n e^{2in\phi}\right).
+```
+
+``P`` and ``\mu`` are smooth in both points, so each term is a smooth function times one of the kernels ``\log|\Delta
+\zeta|`` or ``e^{2ik\phi}``, bounded but discontinuous in direction at the target. Their product-integration weights
+against the even PSH, computed for one target per ring by polar quadrature about it, rotate to the other targets of
+the ring, and composed with the transform give grid operators of the disk; the operator on ``\Omega`` sums them with
+the coefficients of each pair, as for `𝒮`. The series is truncated where ``|\mu|^K`` reaches rounding. Taking ``\mu``
+at the target alone, rather than for the pair, would leave a remainder that is continuous but not smooth at the
+target, and its plain quadrature converges only algebraically. `volume_matrix(Ω; kernel)` returns these weights as an
+``N \times N`` matrix on the grid, also for the kernel ``|x - y| = |P|\,|\Delta\zeta|\,|1 + \mu e^{-2i\phi}|``
+(`kernel = :abs`), whose angular factor is expanded the same way. `𝒱(x, u, Ω)` evaluates at points ``x`` inside
+``\Omega`` (the map is inverted by Newton's method), and anywhere for an ellipse, whose affine map extends to the plane.
+
+On a ``1.5 \times 0.67`` ellipse, `𝒱(1, Ω)` matches the closed form (a quadratic inside) to ``10^{-15}`` at `M = 8`,
+and a smooth density converges like the grid resolves it: errors of ``2 \times 10^{-8}``, ``10^{-12}`` and
+``10^{-15}`` at `M = 8, 12, 16`, also at points within ``10^{-4}`` of the boundary.
+
 ## Shape derivatives
 
 `δ𝒮(u, m, D)`, `δ𝒩(u, m, D)`, `δ𝒱(u, m, D)` and `δℬ(u, m, D)` differentiate the operators with respect to a
