@@ -29,6 +29,7 @@ ipsh
 ipsh!
 psh_matrix
 ipsh_matrix
+mode_orders
 upsample
 legpts
 trigpts

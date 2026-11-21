@@ -173,8 +173,10 @@ end
 
 Grid values on `D` of the PSH expansion with coefficients `û` (laid out as by `psh`), as a new
 array; `ipsh!` transforms in place. Coefficients of the other parity are ignored. A tuple of
-coefficient arrays is transformed componentwise. `ipsh(û, D, r)` evaluates at the radii `r` instead
-(on the grid's angles), as `trace` does on the rim.
+coefficient arrays is transformed componentwise. `ipsh(û, D, r)` with real radii `r` evaluates at
+those radii instead (on the grid's angles), as `trace` does on the rim, returning a
+`length(r) × (2Mₘ + 1)` array; `ipsh(û, D, ζ)` with complex points `ζ` evaluates at arbitrary points
+(see below). `û` is not modified.
 """
 function ipsh(û::AbstractArray, D; parity=:even)
   û = ComplexF64.(û)
@@ -185,9 +187,9 @@ function ipsh(û::AbstractArray, D; parity=:even)
 end
 
 # Evaluation of PSH expansion at arbitrary radial points
-function ipsh(û::AbstractArray{ComplexF64}, D, r; parity=:even)
+function ipsh(û::AbstractArray, D, r::Union{Real, AbstractVector{<:Real}}; parity=:even)
 
-  û .*= getproperty(D, parity)
+  û = reshape(û, D.shp) .* getproperty(D, parity)
   
   # Compute transform
   u = zeros(ComplexF64, (length(r), D.shp[2]))
@@ -227,6 +229,106 @@ end
 
 # ipsh for tuple input
 ipsh(f̂::Tuple, D; parity=:even) = map(fi -> ipsh(fi, D; parity=parity), f̂)
+ipsh(f̂::Tuple, D, ζ::AbstractVector{<:Complex}; parity=:even) = map(fi -> ipsh(fi, D, ζ; parity=parity), f̂)
+
+# Linear indices, into a coefficient array of shape D.shp, of the modes of the parity (D.idx_even for :even)
+_mode_indices(D, parity) = parity === :even ? D.idx_even : findall(vec(getproperty(D, parity)))
+
+"""
+    mode_orders(D; parity=:even)
+
+Azimuthal order ``m`` of each retained mode of the parity, in the order of the columns of
+`ipsh_matrix(D, ζ; parity)`: the modes are listed by their linear index in a coefficient array of
+shape `D.shp` (for `:even`, the order of `D.idx_even`).
+"""
+function mode_orders(D; parity=:even)
+  CI = CartesianIndices(D.shp)
+  return [D.Mspan[CI[k][2]] for k in _mode_indices(D, parity)]
+end
+
+# Polar coordinates of the points ζ, with |ζ| clamped to the rim
+_polar(ζ) = (min.(abs.(ζ), 1.0), angle.(ζ))
+
+# Calls f(nm, m, Y) for each azimuthal mode m = D.Mspan[nm], with Y[i, ℓ + 1] = y_ℓ^m(rᵢ) (the radial factor,
+# real) for |m| ≤ ℓ ≤ Mℓ from the recurrence of `ipsh!`; the columns ℓ < |m| hold stale values
+_radial_sweep(f, D, r) = _radial_sweep(f, D.Mspan, D.Mℓ, D.a, D.am1, r)
+
+# (the fields of a disk are untyped, so they are passed to a function barrier)
+function _radial_sweep(f, Mspan, Mℓ::Int, a, am1, r)
+  w = sqrt.(1 .- r.^2)
+  Y = zeros(length(r), Mℓ + 1)
+  for (nm, m) in enumerate(Mspan)
+    absm = abs(m)
+    absm > Mℓ && continue
+    Y[:, absm + 1] .= real.(ylm(absm, m, r))
+    if absm < Mℓ
+      Y[:, absm + 2] .= real.(ylm(absm + 1, m, r))
+      for nl = (absm + 2) : Mℓ
+        @views Y[:, nl + 1] .= a[nl, nm] .* w .* Y[:, nl] .+ am1[nl, nm] .* Y[:, nl - 1]
+      end
+    end
+    f(nm, m, Y)
+  end
+end
+
+"""
+    ipsh_matrix(D, ζ; parity=:even)
+
+Values of the PSH basis of the parity at the complex points `ζ`: a dense
+`length(ζ) × length(mode_orders(D; parity))` matrix with entries ``y_ℓ^m(ζ_i)``. The columns are the
+retained modes of the parity, ordered by their linear index in a coefficient array of shape `D.shp`
+(for `:even`, the order of `D.idx_even`), so `ipsh_matrix(D, ζ) * vec(û)[D.idx_even] ≈ ipsh(û, D, ζ)`
+for coefficients `û` from `psh`. The points are in the reference disk: for a `Domain` they are
+preimages under its map (like `Ω.ζ`, not `Ω.z`). Points with ``|ζ| > 1`` are clamped to the rim,
+``ζ/|ζ|``.
+`ipsh_matrix(D; parity)` (no points) is the matrix of the inverse transform on the grid.
+"""
+function ipsh_matrix(D, ζ::AbstractVector{<:Complex}; parity=:even)
+  idx = _mode_indices(D, parity)
+  col = zeros(Int, D.shp)
+  col[idx] .= 1 : length(idx)
+  r, θ = _polar(ζ)
+  return _ipsh_matrix(D, col, length(idx), r, θ)
+end
+
+# Column col[ℓ + 1, nm] (0 if not retained) of A holds y_ℓ^m at the points (r, θ)
+function _ipsh_matrix(D, col::Matrix{Int}, n, r, θ)
+  A = zeros(ComplexF64, length(r), n)
+  _radial_sweep(D, r) do nm, m, Y
+    eᵐ = cis.(m .* θ)
+    for l = abs(m) : size(Y, 2) - 1
+      j = col[l + 1, nm]
+      j > 0 && (A[:, j] .= view(Y, :, l + 1) .* eᵐ)
+    end
+  end
+  return A
+end
+
+"""
+    ipsh(û, D, ζ::AbstractVector{<:Complex}; parity=:even)
+
+Values at the complex points `ζ` of the PSH expansion with coefficients `û` (laid out as by `psh`),
+``\\sum_{ℓ,m} û_ℓ^m y_ℓ^m(ζ)`` over the modes of the parity; coefficients of the other parity are
+ignored and `û` is not modified. The points are in the reference disk (for a `Domain`, preimages
+under its map, like `Ω.ζ`); points with ``|ζ| > 1`` are clamped to the rim. Costs
+``O(\\mathrm{length}(ζ) ⋅ Mℓ Mₘ)`` without forming `ipsh_matrix(D, ζ)`.
+"""
+function ipsh(û::AbstractArray, D, ζ::AbstractVector{<:Complex}; parity=:even)
+  r, θ = _polar(ζ)
+  return _ipsh_points(ComplexF64.(reshape(û, D.shp) .* getproperty(D, parity)), D, r, θ)
+end
+
+# Σ Ĉ[ℓ + 1, nm] y_ℓ^m at the points (r, θ)
+function _ipsh_points(Ĉ::Matrix{ComplexF64}, D, r, θ)
+  u = zeros(ComplexF64, length(r))
+  v = zeros(ComplexF64, length(r))
+  _radial_sweep(D, r) do nm, m, Y
+    l = abs(m) + 1 : size(Y, 2)
+    mul!(v, view(Y, :, l), view(Ĉ, l, nm))
+    u .+= v .* cis.(m .* θ)
+  end
+  return u
+end
 
 # ipsh for flattened input
 function ipsh_vec!(û, D; parity=:even)
@@ -379,4 +481,4 @@ function ipsh_matrix(D; parity=:total)
   return reshape(Q, Nr * Nθ, Nr * Nθ)
 end
 
-export psh_matrix, ipsh_matrix
+export psh_matrix, ipsh_matrix, mode_orders
