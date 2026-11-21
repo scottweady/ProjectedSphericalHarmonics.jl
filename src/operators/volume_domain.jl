@@ -273,8 +273,9 @@ _volume_pq(Ω, geom::_AffinePQ, ζ₀, η) = fill(geom.P, length(η)), fill(geom
 
 function _volume_pq(Ω, geom::_ConformalPQ, ζ₀, η)
   f₀ = Ω.f(ζ₀)
-  # Close pairs by the derivative at the midpoint (exact to second order), to avoid the cancellation
-  P = [abs(ζ₀ - e) < 1e-8 ? Ω.df((ζ₀ + e) / 2) : (f₀ - Ω.f(e)) / (ζ₀ - e) for e in η]
+  # Close pairs by the mean value of F′ along the segment (Gauss rule), to avoid the cancellation of the quotient
+  t, w = _gl01(16)
+  P = [abs(ζ₀ - e) < 0.1 ? sum(w[g] * Ω.df(e + t[g] * (ζ₀ - e)) for g in eachindex(t)) : (f₀ - Ω.f(e)) / (ζ₀ - e) for e in η]
   return P, zeros(ComplexF64, length(η))
 end
 
