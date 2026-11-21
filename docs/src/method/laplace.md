@@ -50,15 +50,25 @@ u_p|_{r=1}``. For ``f = -1``, ``g = 0`` it reproduces ``(1 - r^2)/4`` to 4e-15 a
 
 ## Volume potentials
 
-Two volume potentials on the disk are computed by dense direct sums over the grid, at a cost of ``O(N^2)`` in the
-number ``N`` of grid points:
+`𝒱(u, D)`, the 2D Laplace potential ``\frac{1}{2\pi}\int_D \log|x - y|\, u(y)\, dy`` (so ``\Delta\mathcal{V}[u]
+= u``), and `𝒯_vol(u, D)`, the potential ``\frac{1}{8\pi}\int_D |x - y|\, u(y)\, dy``, take a smooth density
+and are computed by product integration. The density is expanded in even PSH, ``u = \sum_j \hat u_j y_j``, and
+the integrals of the kernel against each ``y_j`` are computed once per target radius: by rotational symmetry the
+weights of a target ``r e^{i\alpha}`` are those of ``r`` times ``e^{i m_j \alpha}``. For the log kernel the Fourier
+series ``\log|\rho e^{i\theta} - r| = \log\max(\rho, r) - \sum_{k \ge 1} \frac{q^k}{k} \cos k\theta``,
+``q = \min(\rho, r)/\max(\rho, r)``, reduces each weight to radial integrals of polynomials (and of
+``\rho\log\rho`` times a polynomial), done exactly by Gauss rules. For ``|x - y|`` the weights use polar
+coordinates about the target, in which the integrand is a polynomial along each chord, with an angular rule
+refined geometrically toward the rim. Both are spectrally accurate in ``M`` for smooth ``u`` and exact to
+rounding for polynomial densities; `𝒱(1, D)` is ``(r^2 - 1)/4``. On the grid the operator is block diagonal in
+``m`` (built once per disk and cached); `𝒱(x, u, D)` and `𝒯_vol(x, u, D)` evaluate at arbitrary points, inside,
+on or outside the disk.
 
-- `𝒱(u, D)`, the 2D Laplace potential ``\frac{1}{2\pi}\int_D \log|x - y|\, u(y)\, dy`` (so ``\Delta\mathcal{V}[u]
-  = u``), with its log singularity subtracted. `𝒱(1, D)` is exactly ``(r^2 - 1)/4``.
-- `ℬ(u, D; κ)`, the 2D bilaplacian potential ``\frac{1}{8\pi}\int_D |x - y|^2 (\log|x - y| - 1 + \kappa)\, u(y)\,
-  dy`` (so ``\Delta^2 \mathcal{B}[u] = u``). Its kernel is continuous, so the plain grid quadrature is used.
+`ℬ(u, D; κ)`, the 2D bilaplacian potential ``\frac{1}{8\pi}\int_D |x - y|^2 (\log|x - y| - 1 + \kappa)\, u(y)\,
+dy`` (so ``\Delta^2 \mathcal{B}[u] = u``), is a dense direct sum over the grid, ``O(N^2)`` in the number ``N`` of
+grid points; its kernel is continuous, and it converges algebraically, not spectrally.
 
-Both converge algebraically, not spectrally. `𝒯(u, D)`, the single layer of the 3D bilaplacian (kernel
+`𝒯(u, D)`, the single layer of the 3D bilaplacian (kernel
 ``|x - y|/8\pi``), is spectral. It uses ``|x - y| = |x - y|^2/|x - y|`` and expands ``|x - y|^2 = |x|^2 - x\bar y -
 \bar x y + |y|^2`` in complex notation, which gives four applications of `𝒮`:
 

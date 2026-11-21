@@ -18,7 +18,8 @@ as matrices of size `(Mℓ + 1, 2Mₘ + 1)`. Fields used outside the package:
   (``0, …, Mₘ, -Mₘ, …, -1``) label the rows and columns of a coefficient array
 - `even`, `odd`: masks of the coefficients with ``ℓ + m`` even or odd (and ``|m| ≤ ℓ``)
 
-The other fields are precomputed operator matrices in coefficient space.
+The other fields are precomputed operator matrices in coefficient space, and a cache of the
+operators built on first use.
 """
 struct Disk
   shp
@@ -47,6 +48,7 @@ struct Disk
   am1
   W
   Wqr
+  cache     # operators built on first use (e.g. the volume potentials), with a lock
 end
 
 """
@@ -103,7 +105,8 @@ function disk(Mℓ::Int, Mₘ::Int)
   K̂_G = stokes3d_single_layer_matrix(L, M, idx_even)
   ŜN̂⁻¹ = laplace3d_SN⁻¹_matrix(L, M, idx_even)
 
-  return Disk(shp, Mℓ, Mₘ, L, M, odd, even, total, idx_even, r, θ, ζ, dζ, w, dw, dθ, ∂ζ̂, ∂n̂, K̂_S, K̂_N, K̂_G, ŜN̂⁻¹, a, am1, W, Wqr)
+  return Disk(shp, Mℓ, Mₘ, L, M, odd, even, total, idx_even, r, θ, ζ, dζ, w, dw, dθ, ∂ζ̂, ∂n̂, K̂_S, K̂_N, K̂_G, ŜN̂⁻¹, a, am1, W, Wqr,
+              (IdDict{Any, Any}(), ReentrantLock()))
 
 end
 

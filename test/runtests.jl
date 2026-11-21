@@ -10,6 +10,7 @@ end
 
 @testset "ProjectedSphericalHarmonics" begin
   @testset "Integral operators" include("test_integral.jl")
+  @testset "Volume potentials" include("test_volume.jl")
   @testset "Differential operators" include("test_differential.jl")
   @testset "Domains" include("test_domain.jl")
   @testset "Stokes mobility" include("test_stokes_mobility.jl")

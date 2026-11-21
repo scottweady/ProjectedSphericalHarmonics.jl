@@ -50,7 +50,7 @@ integral(f[1], D)                   # its drag: 16/3 under a stress-free surface
 |:--|:--|
 | Discretizations | `disk(Mℓ, Mₘ)`, `ellipse(a, b, Mℓ, Mₘ)`, `domain(γ, Mℓ, Mₘ)` (a harmonic or conformal map from samples of the boundary; experimental) |
 | Basis | `ylm`, `λlm`, `Nlm`; transforms `psh` and `ipsh` (even or odd parity), `upsample`, `trace`, `integral` |
-| Laplace | single layer `𝒮`, hypersingular `𝒩`, their inverses, `𝒮𝒩⁻¹`; Poisson `Δ⁻¹`; volume potentials `𝒱`, `ℬ`, `𝒯`; shape derivatives `δ𝒮`, `δ𝒩`, `δ𝒱`, `δℬ` |
+| Laplace | single layer `𝒮`, hypersingular `𝒩`, their inverses, `𝒮𝒩⁻¹`; Poisson `Δ⁻¹`; volume potentials `𝒱`, `𝒯_vol`, `ℬ`, `𝒯`; shape derivatives `δ𝒮`, `δ𝒩`, `δ𝒱`, `δℬ` |
 | Differential operators | `∂ζ`, `∂ζ̄`, `∂x`, `∂y`, `grad`, `div`, `lap`, `∂n` (on the disk) |
 | Stokes | single layer `𝒮_st` and its inverse, `stokes_mobility_matrix`, `stokes_mobility_solve`; two viscosities, `μ_bottom` and `μ_top` |
 | Suspensions | `suspension_mobility_solve`, `suspension_velocity_solve`, `suspension_velocity_eval`; fast sums by Ewald + NUFFT or FMM3D, closed-form close evaluation for disks and ellipses |

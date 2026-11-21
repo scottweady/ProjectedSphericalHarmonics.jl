@@ -121,55 +121,6 @@ function laplace3d_hypersingular_inverse!(f::AbstractMatrix{ComplexF64}, D::Disk
 end
 
 """
-    laplace2d_volume(u, D)
-    
-Volume potential of 2D Laplacian
-
-  K(x) = (1/2π) * log|x|
-
-# Arguments
-- `u` : density function on the disk
-- `D` : discretization of the disk
-
-# Returns
-- volume potential evaluated on the disk
-
-"""
-function laplace2d_volume(u, D::Disk)
-
-  if isa(u, Number)
-    u = fill(u, size(D.ζ))
-  end
-
-  shp = size(u)
-
-  ζ, dζ = D.ζ, D.dζ
-  u, ζ, dζ = vec(u), vec(ζ), vec(dζ)
-
-  δζ = ζ .- transpose(ζ)
-  V = (1 / 2π) * log.(abs.(δζ) .+ (δζ .== 0)) .* dζ';
-  Vu = V * u .+ ((abs2.(ζ) .- 1) / 4 .- sum(V, dims=2)) .* u
-
-  return reshape(Vu, shp)
-
-end
-
-"""
-    𝒱(u, D::Disk)
-
-Volume potential of the 2D Laplacian on the unit disk,
-
-```math
-\\mathcal{V}[u](x) = \\frac{1}{2\\pi} \\int_D \\log|x - y|\\, u(y)\\, dy,
-```
-
-so that ``Δ\\mathcal{V}[u] = u`` and `𝒱(1, D)` ``= (|x|^2 - 1)/4``. A dense direct sum over the grid
-with the singularity subtracted (``O(N^2)`` in the number of grid points `N`); accurate to about
-the quadrature error of a log singularity on the grid, not spectrally.
-"""
-𝒱(u, D::Disk) = laplace2d_volume(u, D)
-
-"""
     bilaplace2d_volume(u, D; κ=0)
 
 Volume potential of 2D Bilaplacian

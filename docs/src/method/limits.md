@@ -23,10 +23,11 @@ What the method does not do, and where it needs care.
   and cheap.
 
 **Operators**
-- The volume potentials `𝒱` and `ℬ` are dense direct sums, ``O(N^2)``, and converge algebraically.
+- `ℬ` is a dense direct sum, ``O(N^2)``, and converges algebraically. `𝒱` and `𝒯_vol` are spectral only for
+  smooth densities; `𝒯_vol` at off-grid targets costs a polar quadrature per distinct ``|x|``.
 - The differential operators (`∂ζ`, `∂ζ̄`, `grad`, `∂x`, `∂y`, `div`, `lap`) divide by ``w`` in coefficient space,
   which is ill-conditioned. They lose digits as the resolution grows. `∂n` does not have this problem.
-- These are defined on the disk only: `𝒱`, `ℬ`, `𝒯`, `𝒮𝒩⁻¹`, `Δ⁻¹`, the differential operators, and the shape
+- These are defined on the disk only: `𝒱`, `ℬ`, `𝒯`, `𝒯_vol`, `𝒮𝒩⁻¹`, `Δ⁻¹`, the differential operators, and the shape
   derivatives. The layer potentials `𝒮`, `𝒩`, their inverses, and the Stokes operators work on every domain.
 - Densities must have the edge behavior the operator expects: ``g/w`` for `𝒮`, `𝒯` and `𝒮_st`, ``w g`` for `𝒩`.
   A density without it, such as a smooth density passed to `𝒮`, still converges, but only algebraically.

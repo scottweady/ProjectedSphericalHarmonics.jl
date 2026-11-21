@@ -100,7 +100,7 @@ const SETTINGS = [
      run=:(𝒮𝒩⁻¹(real.(Ω.z), Ω))),
     # volume and differential operators (on the disk)
     (id="volume", label="𝒱", group="Volume & differential", base=false, parent="disk", schemes=DISK,
-     about="𝒱(u, D): the volume potential of the 2D Laplacian, a dense sum over the grid",
+     about="𝒱(u, D): the volume potential of the 2D Laplacian, by product integration in even PSH",
      run=:(𝒱(ones(size(Ω.z)), Ω))),
     (id="bilaplace", label="ℬ", group="Volume & differential", base=false, parent="disk", schemes=DISK,
      about="ℬ(u, D; κ): the volume potential of the 2D bilaplacian, a dense sum over the grid",
