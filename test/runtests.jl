@@ -15,4 +15,5 @@ end
   @testset "Stokes mobility" include("test_stokes_mobility.jl")
   @testset "Close evaluation" include("test_close_eval.jl")
   @testset "Evaluation at points" include("test_eval.jl")
+  @testset "Coefficient resizing" include("test_resize.jl")
 end

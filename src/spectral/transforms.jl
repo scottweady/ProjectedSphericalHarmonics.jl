@@ -395,6 +395,71 @@ end
 
 
 """
+    resize_coefficients(û, D, D′; parity=:even)
+
+PSH coefficients `û` on `D` (laid out as by `psh`) re-laid out for `D′`, which may have a different
+degree `Mℓ` and order `Mₘ`: modes ``(ℓ, m)`` present on both are copied, modes only on `D′` are
+zero, and modes only on `D` are dropped. `Mℓ` and `Mₘ` may each grow or shrink. The basis functions
+do not depend on the discretization, so for `D′` at least as fine as `D` this is exact:
+`ipsh(resize_coefficients(û, D, D′), D′)` samples the same function on the grid of `D′`. Going to a
+coarser disk truncates (the ``L^2`` projection onto the retained modes). Only coefficients of the
+requested parity are kept. `û` may be an array of shape `D.shp`, its flattening (the result is then
+flattened too), or a tuple of such arrays. `D` and `D′` may be a `Disk` or `Domain`. The matrix of
+this map on the retained-mode vectors is `embedding_matrix(D, D′; parity)`.
+"""
+function resize_coefficients(û::AbstractArray, D, D′; parity=:even)
+  length(û) == prod(D.shp) || throw(DimensionMismatch(
+    "coefficient array has $(length(û)) entries, expected $(prod(D.shp)) for a disk of shape $(D.shp)"))
+  flat = ndims(û) == 1
+  û = reshape(û, D.shp)
+  mask′ = getproperty(D′, parity)
+  v̂ = zeros(eltype(û), D′.shp)
+  for (i, i′) in _common_modes(D, D′)
+    mask′[i′] && (v̂[i′] = û[i])
+  end
+  return flat ? vec(v̂) : v̂
+end
+
+resize_coefficients(û::Tuple, D, D′; parity=:even) = map(ûi -> resize_coefficients(ûi, D, D′; parity=parity), û)
+
+"""
+    embedding_matrix(D, D′; parity=:even)
+
+Sparse 0–1 matrix of `resize_coefficients` on the retained-mode vectors: of size
+`count(D′.parity) × count(D.parity)` (with `parity` `:even` or `:odd`), acting on `û[findall(vec(D.parity))]`
+(for `:even` that is `û[D.idx_even]`) and returning the corresponding coefficients on `D′`. Thus
+
+    ipsh_matrix(D′; parity)[:, findall(vec(D′.parity))] * embedding_matrix(D, D′; parity)
+
+evaluates `D`-coefficients on the grid of `D′`. For `D′` at least as fine as `D` the matrix is an
+injection with `embedding_matrix(D′, D) * embedding_matrix(D, D′) == I`; in general
+`embedding_matrix(D′, D) == transpose(embedding_matrix(D, D′))`.
+"""
+function embedding_matrix(D, D′; parity=:even)
+  mask, mask′ = vec(getproperty(D, parity)), vec(getproperty(D′, parity))
+  # Position of each grid-layout index in the retained-mode vector (0 if not retained)
+  col = cumsum(mask) .* mask
+  row = cumsum(mask′) .* mask′
+  I = Int[]; J = Int[]
+  for (i, i′) in _common_modes(D, D′)
+    if mask[i] && mask′[i′]
+      push!(I, row[i′]); push!(J, col[i])
+    end
+  end
+  return sparse(I, J, ones(length(I)), count(mask′), count(mask))
+end
+
+# Pairs (i, i′) of linear indices into coefficient arrays of `D` and `D′` holding the same mode (ℓ, m),
+# over the modes |m| ≤ ℓ common to both. Columns follow `Mspan` (0, …, Mₘ, -Mₘ, …, -1)
+function _common_modes(D, D′)
+  Mℓ, Mₘ = min(D.Mℓ, D′.Mℓ), min(D.Mₘ, D′.Mₘ)
+  L, L′ = LinearIndices(D.shp), LinearIndices(D′.shp)
+  column(m, D) = m >= 0 ? m + 1 : D.shp[2] + m + 1
+  return [(L[l + 1, column(m, D)], L′[l + 1, column(m, D′)]) for m = -Mₘ : Mₘ for l = abs(m) : Mℓ]
+end
+
+
+"""
   psh_matrix(D; parity=:even)
 
   Dense matrix representation of the PSH transform.

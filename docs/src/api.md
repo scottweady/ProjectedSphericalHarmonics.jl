@@ -31,6 +31,8 @@ psh_matrix
 ipsh_matrix
 mode_orders
 upsample
+resize_coefficients
+embedding_matrix
 legpts
 trigpts
 ```

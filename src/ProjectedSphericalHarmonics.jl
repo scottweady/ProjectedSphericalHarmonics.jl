@@ -55,7 +55,7 @@ export ylm, ∂ylm∂ζ, Nlm, λlm, Clmn
 
 # Transforms
 include("spectral/transforms.jl")
-export psh, ipsh, psh!, ipsh!, upsample, mode_orders
+export psh, ipsh, psh!, ipsh!, upsample, resize_coefficients, embedding_matrix, mode_orders
 
 """
 Integral and differential operators
